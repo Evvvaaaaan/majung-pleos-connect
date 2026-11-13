@@ -207,7 +207,9 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None):
     c['pleos_plan'] = (
         heading("가. 현재 구현 상태 (1차 접수 시점)")
         + bullet("Android Kotlin(Compose) 차량 앱 — pleos(실 SDK) / sim(시뮬레이션) 두 플레이버, 동일한 앱 로직. Node.js SSE 중계 서버 + 동승자 무설치 웹. 유닛 테스트 15건, 중계 서버 E2E 통과. sim·pleos 릴리스 APK 빌드 완료.")
-        + bullet("Android Automotive OS 에뮬레이터(API 33, 2560×1440 @160dpi — Pleos Connect 에뮬레이터와 같은 화면 스펙)에서 sim APK를 실행해 6단계 전체를 녹화했습니다(시연 영상). AAOS CarPropertyManager 차속 구독이 실제로 동작함을 확인했습니다.")
+        + bullet("**Pleos Connect Emulator v2.1.0(API 34, 2560×1440)에서 pleos 빌드를 실행·검증했습니다.** Vehicle SDK `register*` 16건 등록, Virtual Console로 주입한 기어·차속·브레이크·조향·방향지시등·하향등·와이퍼·도어·착좌 콜백 수신, 제어 호출 `onComplete`(도어 잠금 해제·조수석 창문·독서등), NaviHelper 경로 요청·TBT 수신, 능력 조회(`checkXXXCapabilities`)까지 확인했습니다. 로그·화면은 저장소 docs/verification, docs/screenshots에 있습니다.")
+        + bullet("에뮬레이터에서 드러난 차종 차이는 코드로 흡수했습니다: DOOR_LOCK이 좌석별 영역을 거부 → 능력 조회의 지원 영역(4도어 묶음)을 선택, WINDOW_POS 범위 0~10 → AreaBounds로 % 환산, Pleos TTS ON_DEVICE 엔진 오류 → EventListener.onError 수신 후 Android TTS 폴백.")
+        + bullet("위치 기반 자동 접근·정차 판정은 에뮬레이터가 위치 주입을 지원하지 않아 Android Automotive OS 에뮬레이터(API 33, 같은 화면 스펙)의 시뮬레이션 주행으로 검증·녹화했습니다. AAOS CarPropertyManager 차속 구독은 두 환경 모두에서 동작했습니다.")
         + bullet("SDK 버전은 nexus-playground.pleos.ai에 실제 배포된 것만 사용: Vehicle 2.3.2 · NaviHelper 3.0.5 · FusedLocation 1.1.3 · TextToSpeech 3.3.1.")
         + heading("나. SDK / API 사용 계획 (설계 기준 → 구현 파일)")
         + table(["SDK · 도메인", "사용 API", "역할 / 미지원 시 대체", "권한"],
@@ -225,8 +227,7 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None):
         + heading("다. 구조")
         + body("Vehicle SDK·AAOS·FusedLocation 콜백 → VehicleSignalHub(단일 StateFlow, 조향 각속도·추정 차속 계산) → SignalDrivenPickupCoordinator(신호 변화로 6단계 자동 전진) → PickupEtaOrchestrator(세션·티켓·VehicleFacts 발행·즉시 파기) → 중계 서버(원시 좌표 폐기) → 동승자 웹. 차량 제어는 BoardingActuator(Door/Window/Light) + PleosCapabilityGateway(공조 스냅샷·원복, 탑승 판정 모드).")
         + heading("라. 2차 PT 심사 전 계획")
-        + bullet("Pleos Connect 에뮬레이터 v2.1.0(API 34)에 pleos APK 설치, Virtual Console 신호 주입으로 트림별 check*Capabilities 응답과 폴백(수동 종료 모드, 창문 생략) 실증.")
-        + bullet("TTS·FusedLocation 실연동 확인 및 시연 영상 교체, 정차 후 승차 소요 시간 비교 실험(통화 대 마중).")
+        + bullet("실차 또는 TTS 엔진·위치가 살아 있는 환경에서 Pleos TTS 환대 음성, FusedLocation 기반 자동 접근·정차, 벨트 체결 자동 종료를 실증하고 시연 영상 교체. 정차 후 승차 소요 시간 비교 실험(통화 대 마중).")
         + bullet("키즈폰 SMS 폴백 발송 채널 연결(현재 서버 스텁), 다자녀 연속 픽업 큐(경유지 2개 슬라이딩은 구현됨).")
     )
 
@@ -261,11 +262,12 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None):
     ref = (
         bullet(f"**GitHub 저장소(소스·APK):** {GITHUB} — 2026.11.16~11.23 Public 유지. 최종 커밋 해시는 제출 이메일 본문에 기재.")
         + bullet("**릴리스 APK:** apk/ 폴더 — majung-v2-pleos-release.apk (Pleos Connect 에뮬레이터 v2.1.0 / API 34 대상, Vehicle 2.3.2), majung-v2-sim-release.apk (일반 AVD·AAOS 에뮬레이터 시연용). 두 APK 모두 debug 키 서명으로 바로 설치됩니다.")
-        + bullet("**시연 영상:** docs/demo/majung_demo.mp4 (이메일 첨부 동일 파일) — Android Automotive 에뮬레이터(2560×1440) 실제 앱 화면 녹화 + 동승자 웹 실시간 상태 재생 + 모션 그래픽 해설·내레이션, 1분 37초.")
+        + bullet("**시연 영상:** docs/demo/majung_demo.mp4 (이메일 첨부 동일 파일, 약 2분) — ① Pleos Connect v2.1.0 전용 에뮬레이터에서 pleos 빌드 실녹화(실제 Vehicle SDK 콜백·제어) ② 위치 기반 자동 접근·정차(Android Automotive 에뮬레이터 시뮬레이션 주행) ③ 동승자 웹 실시간 중계 상태 재생 + 모션 그래픽 해설·내레이션.")
+        + bullet("**Pleos 에뮬레이터 검증 기록:** docs/verification/pleos_emulator_evidence.md (SDK 등록·콜백·제어 onComplete·능력 조회 로그, 에뮬레이터 제약과 대응), 화면 docs/screenshots/pleos_emulator_*.png")
         + bullet("**검증 방법(저장소에서 재현):** node relay-server/verify_e2e_sse.mjs · ./gradlew :app:testSimDebugUnitTest (15건) · ./scripts/verify_and_build_apk.sh")
     )
     if ivi_png and ivi_png.exists():
-        ref += images.add(ivi_png, 16.0, "그림 1. 차량 화면(17\" 가로, Pleos ccNC 다크 IVI 언어) — 5단계 승차 맞이 중. 우측 패널이 차량 신호(기어·차속·문·착좌·벨트·하향등)를 실시간으로 보여 준다.")
+        ref += images.add(ivi_png, 16.0, "그림 1. Pleos Connect v2.1.0 에뮬레이터에서 실행 중인 pleos 빌드 — 착좌 감지 후 환대 카드(좌측은 Pleos 클러스터, 조수석 문 열림이 3D 차량에 반영됨).")
     if web_png and web_png.exists():
         ref += images.add(web_png, 7.0, "그림 2. 동승자 무설치 웹(현대 브랜드 라이트 톤) — 상태 카드는 차량 신호(P단 정차·문·벨트)로만 바뀐다.")
     c['reference_link'] = ref

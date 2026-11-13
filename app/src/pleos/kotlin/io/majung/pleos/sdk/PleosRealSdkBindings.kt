@@ -12,7 +12,10 @@ import ai.pleos.playground.navi.data.TBTInfo
 import ai.pleos.playground.navi.helper.NaviHelper
 import ai.pleos.playground.navi.helper.listener.NaviHelperEventListener
 import ai.pleos.playground.tts.TextToSpeech
+import ai.pleos.playground.tts.constant.ErrorType
 import ai.pleos.playground.tts.constant.Mode
+import ai.pleos.playground.tts.listener.EventListener
+import ai.pleos.playground.tts.listener.OnInitializeListener
 import ai.pleos.playground.vehicle.Vehicle
 import ai.pleos.playground.vehicle.api.model.area.DoorArea
 import ai.pleos.playground.vehicle.api.model.area.SeatArea
@@ -64,24 +67,49 @@ import kotlinx.coroutines.suspendCancellableCoroutine
  */
 class PleosOnDeviceWelcomeTtsAdapter(
     context: Context,
-    useHybridServerMode: Boolean = false
+    useHybridServerMode: Boolean = false,
+    private val onLog: (String) -> Unit = {}
 ) : PleosTtsEngine {
     private val mode = if (useHybridServerMode) Mode.HYBRID else Mode.ON_DEVICE
     private val textToSpeech = TextToSpeech(context.applicationContext, mode)
+    private var initFailed: ErrorType? = null
+
+    // 발화 1건의 완료/오류 콜백. SDK EventListener(onDone/onError/onStop)가 호출하며,
+    // 오류는 FallbackTtsEngine이 Android TTS로 이어받는다 (에뮬레이터: ON_DEVICE_ENGINE_ERROR 확인).
+    @Volatile private var pendingCompleted: (() -> Unit)? = null
+    @Volatile private var pendingError: ((String) -> Unit)? = null
+    private val eventListener = object : EventListener {
+        override fun onStart() {}
+        override fun onReady() {}
+        override fun onDone() { pendingCompleted?.also { pendingCompleted = null; pendingError = null }?.invoke() }
+        override fun onStop() { pendingCompleted?.also { pendingCompleted = null; pendingError = null }?.invoke() }
+        override fun onError(type: ErrorType) {
+            onLog("Pleos TTS onError($type)")
+            pendingError?.also { pendingCompleted = null; pendingError = null }?.invoke("Pleos TTS $type")
+        }
+        override fun onUpdatedRms(rms: Double) {}
+    }
 
     override fun initializeAndSetKoreanLocale(onReady: () -> Unit) {
         runCatching {
-            textToSpeech.initialize()
+            textToSpeech.initialize(object : OnInitializeListener {
+                override fun onSuccess() { onLog("Pleos TTS initialize onSuccess (mode=$mode)") }
+                override fun onFailure(type: ErrorType) { initFailed = type; onLog("Pleos TTS initialize onFailure($type) → Android TTS 폴백") }
+            })
+            textToSpeech.addEventListener(eventListener)
             textToSpeech.setLocale(Locale.KOREAN)
-        }
+        }.onFailure { e -> onLog("Pleos TTS 초기화 예외: ${e.message}") }
         onReady()
     }
 
     override fun speak(text: String, onCompleted: () -> Unit, onError: (String) -> Unit) {
+        initFailed?.let { onError("Pleos TTS not initialized ($it)"); return }
+        pendingCompleted = onCompleted
+        pendingError = onError
         runCatching {
             textToSpeech.speak(text, true)
-            onCompleted()
         }.onFailure { e ->
+            pendingCompleted = null; pendingError = null
             onError(e.message ?: "Pleos TextToSpeech synthesis failed")
         }
     }
@@ -91,6 +119,7 @@ class PleosOnDeviceWelcomeTtsAdapter(
     }
 
     override fun release() {
+        runCatching { textToSpeech.removeEventListener(eventListener) }
         runCatching { textToSpeech.release() }
     }
 }
@@ -197,8 +226,19 @@ class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicl
     private val listeners = CopyOnWriteArraySet<VehicleTelemetryListener>()
     private var sdkRegistered = false
 
+    /** 조수석 창문 위치 범위 (checkWindowPositionCapabilities). Pleos 에뮬레이터는 0~10 스케일이라 % 를 환산해야 한다. */
+    @Volatile var frontRightWindowBounds: IntBounds = IntBounds(0, 100)
+        private set
+
+    /** DOOR_LOCK 이 지원하는 영역 목록 (checkDoorLockCapabilities). 차종에 따라 좌석별이 아니라 묶음 영역일 수 있다. */
+    @Volatile var doorLockAreas: List<DoorArea> = emptyList()
+        private set
+
     private inline fun fanOut(block: VehicleTelemetryListener.() -> Unit) = listeners.forEach { runCatching { it.block() } }
-    private fun log(line: String) = fanOut { onTelemetrySourceLog(line) }
+    private fun log(line: String) {
+        android.util.Log.i("MajungSDK", line) // 에뮬레이터 검증용: adb logcat -s MajungSDK
+        fanOut { onTelemetrySourceLog(line) }
+    }
 
     /** NaviHelper TBT → 허브 (브리지가 연결) */
     fun publishNextTurnDistance(meters: Int) = fanOut { onNextTurnDistanceChanged(meters) }
@@ -215,9 +255,10 @@ class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicl
                 VehicleGear.GEAR_PARK -> GearPosition.P
                 VehicleGear.GEAR_REVERSE -> GearPosition.R
                 VehicleGear.GEAR_NEUTRAL -> GearPosition.N
-                null, VehicleGear.GEAR_UNKNOWN -> return
+                null, VehicleGear.GEAR_UNKNOWN -> { log("gear 콜백 값 없음(${gear?.name}) → 무시"); return }
                 else -> GearPosition.D
             }
+            android.util.Log.i("MajungSDK", "gear raw=${gear.name} → $mapped")
             fanOut { onGearChanged(mapped) }
         }
         override fun onFailed(e: Exception) = log("gear 콜백 실패: ${e.message}")
@@ -278,8 +319,20 @@ class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicl
         val beltAreas = sdkCall(0) { res -> vehicle.getSeat().checkSeatBeltBuckledCapabilities({ areas: List<SeatArea> -> res(areas.size) }, { res(0) }) }
         val occupancyAreas = sdkCall(0) { res -> vehicle.getSeat().checkSeatOccupancyCapabilities({ areas: List<SeatArea> -> res(areas.size) }, { res(0) }) }
         val doorPositionAreas = sdkCall(0) { res -> vehicle.getDoor().checkDoorPositionCapabilities({ m: Map<DoorArea, *> -> res(m.size) }, { res(0) }) }
-        val doorLockAreas = sdkCall(0) { res -> vehicle.getDoor().checkDoorLockCapabilities({ areas: List<DoorArea> -> res(areas.size) }, { res(0) }) }
-        val windowAreas = sdkCall(0) { res -> vehicle.getWindow().checkWindowPositionCapabilities({ m: Map<WindowArea, *> -> res(m.size) }, { res(0) }) }
+        val doorLockAreas = sdkCall(0) { res ->
+            vehicle.getDoor().checkDoorLockCapabilities({ areas: List<DoorArea> -> this.doorLockAreas = areas; res(areas.size) }, { res(0) })
+        }
+        val windowAreas = sdkCall(0) { res ->
+            vehicle.getWindow().checkWindowPositionCapabilities(
+                { m: Map<WindowArea, AreaBounds<Int>> ->
+                    m.entries.firstOrNull { (area, _) -> area.values.contains(WindowValue.ROW_1_RIGHT) }?.value?.let { b ->
+                        frontRightWindowBounds = IntBounds(b.minValue, b.maxValue)
+                    }
+                    res(m.size)
+                },
+                { res(0) }
+            )
+        }
 
         val fan = sdkCall<Pair<AccessType?, Map<SeatZone, IntBounds>>>(null to emptyMap()) { res ->
             vehicle.getHVAC().checkHvacFanSpeedCapabilities(
@@ -300,7 +353,9 @@ class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicl
         }
 
         log(
-            "capabilities: belt=$beltAreas occupancy=$occupancyAreas doorPos=$doorPositionAreas doorLock=$doorLockAreas window=$windowAreas " +
+            "capabilities: belt=$beltAreas occupancy=$occupancyAreas doorPos=$doorPositionAreas doorLock=$doorLockAreas" +
+                "(${this.doorLockAreas.joinToString(";") { a -> a.values.joinToString("+") { it.name } }}) window=$windowAreas" +
+                "(ROW_1_RIGHT ${frontRightWindowBounds.minValue}..${frontRightWindowBounds.maxValue}) " +
                 "fan=${fan.first}(${fan.second.keys.joinToString()}) temp=$temp recirc=$recirc seatHeat=$seatHeat"
         )
         return VehicleCapabilityMatrix(
@@ -434,7 +489,7 @@ class PleosRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
     private val fusedLocation = FusedLocation(appContext)
     private val lowLevel = PleosLowLevelVehicleAdapter(vehicle)
     private val pleosNavi = PleosNaviSdkGateway(appContext) { meters -> lowLevel.publishNextTurnDistance(meters) }
-    private val pleosTts = PleosOnDeviceWelcomeTtsAdapter(appContext, useHybridServerMode = false)
+    private val pleosTts = PleosOnDeviceWelcomeTtsAdapter(appContext, useHybridServerMode = false) { note -> lowLevel.publishLog(note) }
     private var locationInitialized = false
     private var streamingListener: FusedLocationListener? = null
 
@@ -561,30 +616,49 @@ class PleosRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
 
     override fun setPassengerDoorUnlocked(unlocked: Boolean, onResult: (Boolean, String) -> Unit) {
         // Door.setDoorLock 극성: value = true(잠금), false(잠금 해제)
+        // 1차: 조수석(ROW_1_RIGHT) 단독 영역. 차량이 좌석별 DOOR_LOCK 영역을 지원하지 않으면(Pleos 에뮬레이터:
+        // "area ID: 0x4 not supported") 2차로 전체 도어 영역(DoorArea())에 적용한다.
         val lockArgument = !unlocked
-        runCatching {
-            vehicle.getDoor().setDoorLock(
-                DoorArea(DoorValue.ROW_1_RIGHT),
-                lockArgument,
-                { _, appliedLockState ->
-                    onResult(appliedLockState == false, "door.setDoorLock(ROW_1_RIGHT, value=$lockArgument) -> onComplete(locked=$appliedLockState)")
-                },
-                { e -> onResult(false, "door.setDoorLock 실패 -> 수동 도어 언락 안내 (${e.message})") }
-            )
-        }.onFailure { e ->
-            onResult(false, "door.setDoorLock 예외 (${e.message})")
+        fun attempt(area: DoorArea, label: String, onFail: (Exception) -> Unit) {
+            runCatching {
+                vehicle.getDoor().setDoorLock(
+                    area,
+                    lockArgument,
+                    { _, appliedLockState ->
+                        onResult(appliedLockState == false, "door.setDoorLock($label, value=$lockArgument) -> onComplete(locked=$appliedLockState)")
+                    },
+                    { e -> onFail(e) }
+                )
+            }.onFailure { e -> onFail(e as? Exception ?: IllegalStateException(e)) }
+        }
+        // 능력 조회 결과에서 조수석을 포함한 지원 영역을 우선 사용 (예: ROW_1_LEFT+ROW_1_RIGHT 묶음)
+        val supported = lowLevel.doorLockAreas
+        val preferred = supported.firstOrNull { a -> a.values.contains(DoorValue.ROW_1_RIGHT) } ?: supported.firstOrNull()
+        val preferredLabel = preferred?.values?.joinToString("+") { it.name } ?: "ROW_1_RIGHT"
+        attempt(preferred ?: DoorArea(DoorValue.ROW_1_RIGHT), preferredLabel) { e1 ->
+            if (preferred == null || preferred.values.toList() == listOf(DoorValue.ROW_1_RIGHT)) {
+                onResult(false, "door.setDoorLock 실패 -> 수동 도어 언락 안내 (${e1.message})")
+            } else {
+                attempt(DoorArea(DoorValue.ROW_1_RIGHT), "ROW_1_RIGHT") { e2 ->
+                    onResult(false, "door.setDoorLock 실패 -> 수동 도어 언락 안내 (${e1.message} / ${e2.message})")
+                }
+            }
         }
     }
 
     override fun setFrontPassengerWindowPercent(targetPercent: Int, onResult: (Int, String) -> Unit) {
-        val clamped = targetPercent.coerceIn(0, 100)
+        // 차량별 WINDOW_POS 범위(checkWindowPositionCapabilities)로 % 를 환산한다. Pleos 에뮬레이터: 0..10
+        val pct = targetPercent.coerceIn(0, 100)
+        val b = lowLevel.frontRightWindowBounds
+        val raw = (b.minValue + (b.maxValue - b.minValue) * pct / 100.0).toInt().coerceIn(b.minValue, b.maxValue)
         runCatching {
             vehicle.getWindow().setWindowPosition(
                 WindowArea(WindowValue.ROW_1_RIGHT),
-                clamped,
+                raw,
                 { _, appliedPos ->
-                    val actual = appliedPos ?: clamped
-                    onResult(actual, "window.setWindowPosition(ROW_1_RIGHT, $clamped) -> onComplete($actual%)")
+                    val applied = appliedPos ?: raw
+                    val appliedPct = if (b.maxValue > b.minValue) ((applied - b.minValue) * 100.0 / (b.maxValue - b.minValue)).toInt() else pct
+                    onResult(appliedPct, "window.setWindowPosition(ROW_1_RIGHT, raw=$raw of ${b.minValue}..${b.maxValue}) -> onComplete(${appliedPct}%)")
                 },
                 { e -> onResult(0, "window.setWindowPosition 실패 (${e.message})") }
             )

@@ -12,11 +12,13 @@
 
 운전자가 직접 누르는 버튼은 **"주변 확인 완료 · 승차 맞이" 하나**뿐이며, 그것도 P단 정차가 아니면 거부됩니다. 접근 알림·정차 확인·사전 공조·환대 인사·종료는 전부 차량 신호가 트리거합니다.
 
-![차량 화면 · 5단계 승차 맞이 (Android Automotive 에뮬레이터 2560×1440 실녹화)](docs/screenshots/ivi_step5_aaos_emulator.png)
+![Pleos Connect v2.1.0 에뮬레이터 · pleos 빌드 [SDK 실연동] · 착좌 감지 환대 (실제 Vehicle SDK 콜백)](docs/screenshots/pleos_emulator_step5_welcome.png)
 
-<p><img src="docs/screenshots/passenger_web_step5.png" width="300" alt="동승자 무설치 웹 — 지금 타도 돼요" /> <img src="docs/screenshots/ivi_traffic_door_warning.png" width="620" alt="차도 쪽 문 열림 경고" /></p>
+<p><img src="docs/screenshots/passenger_web_step5.png" width="300" alt="동승자 무설치 웹 — 지금 타도 돼요" /> <img src="docs/screenshots/pleos_emulator_traffic_door_warning.png" width="620" alt="Pleos 에뮬레이터 · 차도 쪽 문 열림 경고" /></p>
 
-**시연 영상:** `docs/demo/majung_demo.mp4` (1분 37초 · 1080p · Android Automotive 에뮬레이터 실제 앱 녹화 + 동승자 웹 실시간 중계 상태 재생 + 모션 그래픽 해설·내레이션). 재현: `tools/demo-video/render.mjs`
+**시연 영상:** `docs/demo/majung_demo.mp4` (약 2분 · 1080p). ① **Pleos Connect v2.1.0 전용 에뮬레이터에서 pleos 빌드 실녹화** — Virtual Console로 주입한 실제 Vehicle SDK 콜백(도어·착좌·하향등)과 실제 제어 호출(도어 잠금 해제·창문·독서등 `onComplete`) ② 위치 기반 자동 접근·정차 판정(Android Automotive 에뮬레이터 시뮬레이션 주행) ③ 동승자 웹 실시간 중계 상태 재생 + 모션 그래픽 해설·내레이션. 재현: `tools/demo-video/render.mjs`
+
+**Pleos Connect 에뮬레이터 검증 기록:** [`docs/verification/pleos_emulator_evidence.md`](docs/verification/pleos_emulator_evidence.md) (SDK 등록 16건 · 콜백 수신 · 제어 onComplete · 능력 조회 결과 · 에뮬레이터 제약과 대응), 원본 로그 `docs/verification/pleos_emulator_logcat_demo.txt`
 
 ---
 
@@ -45,7 +47,7 @@
 | 주장 | 파일 | 근거 |
 | :-- | :-- | :-- |
 | Vehicle SDK `register*` 콜백 14종 실제 등록 | `app/src/pleos/.../PleosRealSdkBindings.kt` `registerTelemetryCallbacks` | gear·brake·steering·wiper(FRONT_WINDSHIELD)·turnSignal·lowBeam·door×4·seatOccupancy×3·seatBelt×3 + 초기값 `getCurrent*` 조회 |
-| 트림별 능력 조회 | 같은 파일 `probeCapabilities()` | `checkSeatBeltBuckled/SeatOccupancy/DoorPosition/DoorLock/WindowPosition/HvacFanSpeed/HvacTemperature/HvacRecirculation/SeatTemperatureCapabilities` → AccessType이 WRITE가 아니면 제어 생략, 센서 없는 트림은 수동 종료 모드 |
+| 트림별 능력 조회 | 같은 파일 `probeCapabilities()` | `checkSeatBeltBuckled/SeatOccupancy/DoorPosition/DoorLock/WindowPosition/HvacFanSpeed/HvacTemperature/HvacRecirculation/SeatTemperatureCapabilities` → AccessType이 WRITE가 아니면 제어 생략, 센서 없는 트림은 수동 종료 모드. **DOOR_LOCK은 지원 영역 목록에서 조수석을 포함한 영역(Pleos 에뮬레이터: 4도어 묶음)을 선택, WINDOW_POS는 AreaBounds(0..10)로 % 환산** — 에뮬레이터에서 `onComplete` 확인 |
 | 공조 사전 설정 → 원복 | `vehicle/PleosCapabilityGateway.kt` + 위 바인딩 | `get/setHvacFanSpeed`, `get/setHvacTemperature(CELSIUS)`, `get/setHvacRecirculation`, `get/setHvacSeatTemperature` — 스냅샷 후 세션 종료 시 되돌림 |
 | 차속은 AAOS 표준 속성 | `app/src/main/.../vehicle/AaosSpeedSource.kt` | `CarPropertyManager.registerCallback(PERF_VEHICLE_SPEED, SENSOR_RATE_UI)`; 실패 시 FusedLocation 좌표 변화로 추정 (에뮬레이터에서 실동작 확인) |
 | 다음 회전 거리 → 운전 부하 | `PleosNaviSdkGateway` `NaviHelperEventListener.onTBTInfo` | `TBTInfo.distance` → `DrivingLoadSnapshot.nextTbtDistanceMeters` |
@@ -87,14 +89,16 @@ PORT=8080 node relay-server/server.mjs
 # 에뮬레이터는 http://10.0.2.2:8080 으로 자동 연결, 브라우저는 http://localhost:8080/m/<sessionId>
 ```
 
-### 4-2. Pleos Connect Emulator — pleos 플레이버
-- 대상: **Pleos Connect Emulator v2.1.0 (Android API 34, Cold boot, RAM 4GB, 화면 2560×1440 @160dpi)**
+### 4-2. Pleos Connect Emulator — pleos 플레이버 (검증 완료)
+- 검증 환경: **Pleos Connect Emulator v2.1.0** (`system-images;android-34;pleos_car_emulator;arm64-v8a`, Android API 34, Cold boot, RAM 4GB, 화면 2560×1440 @160dpi, `-gpu host`, macOS Apple Silicon)
+- 이미지 설치: `./scripts/install_pleos_emulator_image.sh` (공식 SDK Update Site 등록 + 42dot SDK 라이선스 동의 + 4.67GB 다운로드) → `avdmanager create avd -n pleos_connect -k "system-images;android-34;pleos_car_emulator;arm64-v8a" -d Pleos_Connect_v2_0`
 - `apk/majung-v2-pleos-release.apk` 설치 → 첫 실행 시 `android.car.permission.CAR_SPEED`(위치 그룹) 권한 허용
-- Virtual Console(127.0.0.1:8088)로 기어·도어·착좌·벨트·하향등 신호를 주입하면 화면 우측 "차량 신호" 패널과 동승자 웹이 즉시 반응
+- Virtual Console(`adb forward tcp:8088 tcp:8088` → 127.0.0.1:8088)로 기어·차속·도어·착좌·하향등·와이퍼·방향지시등을 주입하면 화면 우측 "차량 신호" 패널과 동승자 웹이 즉시 반응. 화면이 꺼지면 Virtual Console에서 Power System 상태를 `On`으로 두세요.
+- 확인된 것: SDK `register*` 16건 등록, 콜백 수신(기어·차속·브레이크·조향·방향지시등·하향등·와이퍼·도어·착좌), 제어 `onComplete`(도어 잠금 해제·창문·독서등), NaviHelper 경로 요청·TBT 수신, 능력 조회. 제약(벨트 신호·위치 주입 불가, TTS 엔진 미탑재, 착좌 값 반전)은 `docs/verification/pleos_emulator_evidence.md` 4절.
 - SDK: Vehicle 2.3.2 · NaviHelper 3.0.5 · FusedLocation 1.1.3 · TextToSpeech 3.3.1 (`nexus-playground.pleos.ai` 실제 배포 버전)
 
 ### 4-3. Android Automotive OS 에뮬레이터 / 일반 AVD — sim 플레이버
-- 검증 환경: **Android Automotive OS API 33 (arm64), AVD 2560×1440 @160dpi, RAM 4GB** — Pleos Connect 에뮬레이터와 같은 화면 스펙으로 6단계 전체를 실행·녹화했습니다.
+- 검증 환경: **Android Automotive OS API 33 (arm64), AVD 2560×1440 @160dpi, RAM 4GB** — 위치 기반 자동 접근·정차 판정까지 포함한 6단계 전체를 실행·녹화했습니다(Pleos 에뮬레이터는 위치 주입이 안 되어 이 부분은 sim으로 시연).
 - `apk/majung-v2-sim-release.apk` 설치 후 화면 하단 **시뮬레이션** 행: "주행 → 간판 앞 P단 정차" → "주변 확인 완료 · 승차 맞이" → "차도 쪽 문 잘못 열림"(선택) → "동승자 탑승(문·착좌·벨트)". 모두 리스너 주입이라 pleos와 같은 코드가 돕니다.
 - 1600dp 이상 폭에서는 레이아웃을 비례 확대하고(`MainActivity.kt` `iviScale`), 상단 카드 높이를 고정해 **버튼 위치가 주행 중 움직이지 않습니다**.
 

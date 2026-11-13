@@ -60,9 +60,14 @@ class VehicleSignalHub(
     private var lastFix: VehicleLocationReading? = null
     private var lastFixMs: Long? = null
 
-    override fun onSpeedChanged(speedKmh: Float) = update("speed=${"%.1f".format(speedKmh)}km/h [AAOS]") { s ->
+    override fun onSpeedChanged(speedKmh: Float) {
         lastAaosSpeedMs = clock()
-        s.copy(speedKmh = speedKmh.coerceAtLeast(0f), speedSource = SpeedSource.AAOS_PROPERTY)
+        // AAOS 콜백은 값이 같아도 반복 호출되므로 1 km/h 이상 변할 때만 이벤트로 기록한다.
+        val cur = _state.value
+        if (cur.speedSource == SpeedSource.AAOS_PROPERTY && abs(cur.speedKmh - speedKmh) < 1f) return
+        update("speed=${"%.1f".format(speedKmh)}km/h [AAOS]") { s ->
+            s.copy(speedKmh = speedKmh.coerceAtLeast(0f), speedSource = SpeedSource.AAOS_PROPERTY)
+        }
     }
 
     override fun onGearChanged(gear: GearPosition) = update("gear=$gear") { s ->
@@ -130,6 +135,7 @@ class VehicleSignalHub(
             val cur = _state.value
             _state.value = transform(cur).copy(lastEventLog = log, eventCount = cur.eventCount + 1, updatedAtMs = clock())
         }
+        android.util.Log.i("MajungHub", log) // 에뮬레이터 검증용: adb logcat -s MajungHub
     }
 
     companion object {

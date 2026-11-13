@@ -1,0 +1,28 @@
+--------- beginning of main
+11-14 03:12:55.156 13504 13504 I MajungFlow: 새 픽업 세션 · 자동 흐름 초기화
+11-14 03:13:02.970 13504 13518 I MajungSDK: Pleos TTS onError(ON_DEVICE_ENGINE_ERROR)
+11-14 03:13:02.970 13504 13518 I MajungHub: Pleos TTS onError(ON_DEVICE_ENGINE_ERROR)
+11-14 03:13:02.970 13504 13518 I MajungSDK: Pleos TTS 실패(Pleos TTS ON_DEVICE_ENGINE_ERROR) → Android TTS 폴백
+11-14 03:13:02.970 13504 13518 I MajungHub: Pleos TTS 실패(Pleos TTS ON_DEVICE_ENGINE_ERROR) → Android TTS 폴백
+11-14 03:13:04.136 13504 13518 I MajungHub: lowBeam=ON
+11-14 03:13:06.413 13504 13504 I MajungFlow: 운전자 수동 지정: 간판 앞 (+12m)
+11-14 03:13:12.674 13504 13504 I MajungFlow: 주변 확인 완료 · 도어 잠금 해제 · 조수석 창문 25% 개방
+11-14 03:13:12.689 13504 13538 I MajungFlow: door.setDoorLock(ROW_1_LEFT+ROW_1_RIGHT+ROW_2_LEFT+ROW_2_RIGHT, value=false) -> onComplete(locked=false)
+11-14 03:13:12.720 13504 13538 I MajungFlow: window.setWindowPosition(ROW_1_RIGHT, raw=2 of 0..10) -> onComplete(20%)
+11-14 03:13:18.718 13504 13518 I MajungHub: door[ROW_2_LEFT]=OPEN
+11-14 03:13:18.765 13504 13504 I MajungFlow: 차도측(ROW_2_LEFT) 도어 열림 → 즉시 경고 발화
+11-14 03:13:19.029 13504 13518 I MajungSDK: Pleos TTS onError(ON_DEVICE_ENGINE_ERROR)
+11-14 03:13:19.029 13504 13518 I MajungHub: Pleos TTS onError(ON_DEVICE_ENGINE_ERROR)
+11-14 03:13:19.029 13504 13518 I MajungSDK: Pleos TTS 실패(Pleos TTS ON_DEVICE_ENGINE_ERROR) → Android TTS 폴백
+11-14 03:13:19.029 13504 13518 I MajungHub: Pleos TTS 실패(Pleos TTS ON_DEVICE_ENGINE_ERROR) → Android TTS 폴백
+11-14 03:13:22.834 13504 13518 I MajungHub: door[ROW_2_LEFT]=CLOSED
+11-14 03:13:25.895 13504 13517 I MajungHub: door[ROW_1_RIGHT]=OPEN
+11-14 03:13:26.555 13504 13517 I MajungFlow: light.setReadingLightSwitch(ROW_1_RIGHT, ON) -> onComplete(ON)
+11-14 03:13:30.014 13504 13518 I MajungHub: seat[ROW_1_RIGHT]=OCCUPIED
+11-14 03:13:30.149 13504 13504 I MajungFlow: 착좌 감지 → 환대 인사: 지수님, 반갑습니다.
+11-14 03:13:30.253 13504 13518 I MajungSDK: Pleos TTS onError(ON_DEVICE_ENGINE_ERROR)
+11-14 03:13:30.253 13504 13518 I MajungHub: Pleos TTS onError(ON_DEVICE_ENGINE_ERROR)
+11-14 03:13:30.253 13504 13518 I MajungSDK: Pleos TTS 실패(Pleos TTS ON_DEVICE_ENGINE_ERROR) → Android TTS 폴백
+11-14 03:13:30.253 13504 13518 I MajungHub: Pleos TTS 실패(Pleos TTS ON_DEVICE_ENGINE_ERROR) → Android TTS 폴백
+11-14 03:13:35.082 13504 13577 I MajungHub: door[ROW_1_RIGHT]=CLOSED
+11-14 03:13:39.185 13504 13504 I MajungFlow: 수동 탑승 확인 → 창문·조명·공조 원복 · 세션 즉시 파기

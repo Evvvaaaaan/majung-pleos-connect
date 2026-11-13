@@ -142,7 +142,10 @@ class MainActivity : ComponentActivity() {
         )
         syncCoordinatorInputs()
 
-        runtimeBridge.initialize { initSummary -> sdkCallbackLog = initSummary }
+        runtimeBridge.initialize { initSummary ->
+            sdkCallbackLog = initSummary
+            android.util.Log.i("MajungSDK", "init: $initSummary")
+        }
         runtimeBridge.queryVehicleVin { vin, vinLog ->
             runOnUiThread {
                 detectedVin = vin
@@ -154,10 +157,21 @@ class MainActivity : ComponentActivity() {
 
         // --- 차량 신호 실연결: SDK register* → Hub → Coordinator -------------------------------
         runtimeBridge.lowLevelHardware.registerTelemetryCallbacks(signalHub)
-        runtimeBridge.startLocationUpdates(signalHub::onLocationFix)
         requestCarSpeedPermissionAndSubscribe()
         lifecycleScope.launch {
             signalHub.state.collect { state -> coordinator.onSignal(state) }
+        }
+        // FusedLocation 서비스 바인딩은 비동기라 initialize() 직후 등록은 유실될 수 있다(Pleos 에뮬레이터에서 확인).
+        // 3초 뒤 연속 콜백을 등록하고, 세션 중에는 2초마다 getLastKnownLocation 으로 보강한다.
+        lifecycleScope.launch {
+            kotlinx.coroutines.delay(3_000)
+            runtimeBridge.startLocationUpdates(signalHub::onLocationFix)
+            while (true) {
+                kotlinx.coroutines.delay(2_000)
+                if (orchestrator.uiState.value.isSessionActive) {
+                    runtimeBridge.queryLastKnownVehicleLocation { r -> if (r.latitude != null && r.longitude != null) signalHub.onLocationFix(r) }
+                }
+            }
         }
 
         bindCarUxRestrictions()

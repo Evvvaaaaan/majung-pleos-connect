@@ -149,11 +149,11 @@ class SignalDrivenPickupCoordinator(
             return@withLock Result.failure(IllegalStateException(why))
         }
         val targetWindow = if (latest.wiperOn) 0 else 25
-        actuator.setPassengerDoorUnlocked(true) { _, doorLog ->
-            actuator.setFrontPassengerWindowPercent(targetWindow) { pct, winLog ->
-                windowPercent = pct
-                publishTrace("$doorLog | $winLog")
-            }
+        // 도어 잠금 해제와 창문 개방은 서로 독립 — 한쪽이 미지원이어도 다른 쪽은 진행한다.
+        actuator.setPassengerDoorUnlocked(true) { _, doorLog -> publishTrace(doorLog) }
+        actuator.setFrontPassengerWindowPercent(targetWindow) { pct, winLog ->
+            windowPercent = pct
+            publishTrace(winLog)
         }
         driverUnlocked = true
         orchestrator.notifyBoardingHospitalityState(doorUnlockedInPark = true, welcomeGreetingActive = false)
@@ -358,6 +358,7 @@ class SignalDrivenPickupCoordinator(
     }
 
     private fun publishTrace(line: String) {
+        android.util.Log.i("MajungFlow", line) // 에뮬레이터 검증용: adb logcat -s MajungFlow
         _trace.value = CoordinatorTrace(
             line = line,
             readingLightOn = readingLightOn,
