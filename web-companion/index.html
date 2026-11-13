@@ -166,9 +166,10 @@
         if (s.vehicleModelLabel) vehicleModel.textContent = s.vehicleModelLabel;
         if (s.plateLast4) plateNumber.textContent = s.plateLast4;
 
-        // 차만 아는 사실 3가지
-        const stopped = s.stoppedInPark === true;
-        setFact(fStop, stopped ? "확인" : (s.gear ? "기어 " + s.gear : "대기"), stopped ? "on" : "");
+        // 차만 아는 사실 3가지. "멈췄어요"는 출발 전 주차 상태가 아니라 정차 지점(4·5단계)에서의 P단 정차만 뜻한다.
+        const parked = s.stoppedInPark === true;
+        const stopped = parked && (s.phase === "STEP4_CURBSIDE_STOPPED" || s.phase === "STEP5_BOARDING_WELCOME");
+        setFact(fStop, stopped ? "확인" : (parked ? "출발 전" : (s.gear ? "기어 " + s.gear : "대기")), stopped ? "on" : "");
         if (s.trafficSideDoorOpen) setFact(fDoor, "차도 쪽 열림", "bad");
         else if (s.passengerDoorOpen) setFact(fDoor, "열림", "on");
         else if (s.boardingDoorUnlocked) setFact(fDoor, "잠금 해제", "on");
