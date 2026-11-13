@@ -20,7 +20,7 @@
       --warn: #B07A00;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { background: var(--bg); }
+    html, body { background: var(--bg); width: 100%; overflow-x: hidden; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
       color: var(--ink);
@@ -52,13 +52,13 @@
     .card { background: var(--card); border: 1px solid var(--hairline); border-radius: 20px; padding: 18px 18px; margin-bottom: 12px; }
     .label { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px; letter-spacing: .02em; }
     .plate-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .model { font-size: 17px; font-weight: 700; }
-    .plate { font-size: 34px; font-weight: 900; letter-spacing: .06em; background: var(--ink); color: #fff; padding: 8px 18px; border-radius: 14px; font-variant-numeric: tabular-nums; }
+    .model { font-size: 17px; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+    .plate { flex-shrink: 0; font-size: 34px; font-weight: 900; letter-spacing: .06em; background: var(--ink); color: #fff; padding: 8px 18px; border-radius: 14px; font-variant-numeric: tabular-nums; }
     .landmark { font-size: 18px; font-weight: 800; margin-top: 2px; letter-spacing: -0.02em; }
     .guide { font-size: 14px; color: var(--muted); margin-top: 6px; }
 
     /* 3. 차량 신호 타일 */
-    .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
+    .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
     .fact { background: var(--bg); border-radius: 14px; padding: 10px 10px; text-align: center; }
     .fact .k { font-size: 11px; color: var(--muted); font-weight: 700; }
     .fact .v { font-size: 15px; font-weight: 800; margin-top: 2px; }
