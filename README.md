@@ -16,7 +16,7 @@
 
 <p><img src="docs/screenshots/passenger_web_step5.png" width="300" alt="동승자 무설치 웹 — 지금 타도 돼요" /> <img src="docs/screenshots/ivi_traffic_door_warning.png" width="620" alt="차도 쪽 문 열림 경고" /></p>
 
-**시연 영상:** `docs/demo/majung_demo.mp4` (약 1분 35초 · 에뮬레이터 실제 앱 녹화 + 동승자 웹 실시간 상태 재생 + 모션 그래픽 해설)
+**시연 영상:** `docs/demo/majung_demo.mp4` (1분 37초 · 1080p · Android Automotive 에뮬레이터 실제 앱 녹화 + 동승자 웹 실시간 중계 상태 재생 + 모션 그래픽 해설·내레이션). 재현: `tools/demo-video/render.mjs`
 
 ---
 
