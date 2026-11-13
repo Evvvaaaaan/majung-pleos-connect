@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>마중 시연 영상 합성 (1920×1080 · t 기반 결정적 렌더링)</title>
+<style>
+  /* 현대 브랜드 톤: Hyundai Blue #002C5F · Active Blue #00AAD2 · Sand #E4DCD3 · 로고/전용서체 미사용 */
+  :root { --blue:#002C5F; --active:#00AAD2; --sand:#E4DCD3; --ink:#0B0F14; --muted:#9AA4B2; --white:#F5F7FA; --danger:#E63312; --success:#2FBF71; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--ink); color: var(--white);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif; -webkit-font-smoothing: antialiased; }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+  .layer { position: absolute; inset: 0; opacity: 0; will-change: opacity, transform; }
+  .brandbar { position: absolute; left: 72px; top: 44px; display: flex; align-items: center; gap: 14px; }
+  .brandbar b { font-size: 34px; letter-spacing: -0.02em; }
+  .brandbar span { font-size: 15px; color: var(--muted); letter-spacing: .18em; font-weight: 700; }
+  .brandbar .pill { font-size: 14px; font-weight: 700; color: var(--ink); background: var(--active); padding: 6px 14px; border-radius: 999px; letter-spacing: 0; }
+  .credit { position: absolute; right: 72px; bottom: 36px; font-size: 16px; color: var(--muted); }
+
+  /* 타이틀 */
+  .title h1 { position: absolute; left: 72px; top: 250px; font-size: 108px; font-weight: 800; letter-spacing: -0.04em; line-height: 1.08; }
+  .title h1 small { display:block; font-size: 28px; font-weight: 600; color: var(--active); letter-spacing: .3em; margin-bottom: 24px; }
+  .title p { position: absolute; left: 76px; top: 760px; font-size: 36px; color: var(--muted); font-weight: 500; letter-spacing: -0.02em; }
+  .title .rule { position: absolute; left: 72px; top: 222px; width: 120px; height: 8px; background: var(--active); border-radius: 4px; }
+
+  /* 3가지 카드 */
+  .three h2 { position: absolute; left: 72px; top: 120px; font-size: 60px; font-weight: 800; letter-spacing: -0.03em; }
+  .three h2 em { color: var(--active); font-style: normal; }
+  .three .sub { position: absolute; left: 76px; top: 205px; font-size: 26px; color: var(--muted); }
+  .cards { position: absolute; left: 72px; top: 300px; display: flex; gap: 28px; }
+  .card { width: 574px; height: 560px; background: #151B23; border: 1px solid #2A333F; border-radius: 32px; padding: 40px 40px; opacity: 0; transform: translateY(40px); }
+  .card .k { font-size: 20px; color: var(--muted); font-weight: 700; letter-spacing: .06em; }
+  .card .phone { margin-top: 18px; font-size: 42px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; color: #C9D1DB; }
+  .card .phone::before { content: "폰은 모른다"; display: block; font-size: 16px; font-weight: 700; color: var(--danger); letter-spacing: .06em; margin-bottom: 8px; }
+  .card .car::before { content: "차는 안다"; display: block; font-size: 16px; font-weight: 700; color: var(--active); letter-spacing: .06em; margin-bottom: 8px; }
+  .card .car { margin-top: 34px; font-size: 30px; font-weight: 700; color: var(--active); line-height: 1.3; }
+  .card .sdk { margin-top: 26px; font-family: "SF Mono", Menlo, monospace; font-size: 18px; color: #7FB7D9; background: #0B0F14; padding: 12px 16px; border-radius: 12px; border: 1px solid #2A333F; }
+  .card .does { margin-top: 26px; font-size: 24px; color: var(--white); line-height: 1.45; }
+
+  /* 데모 장면: IVI 녹화 + 동승자 웹 */
+  .demo .ivi { position: absolute; left: 56px; top: 170px; width: 1284px; height: 602px; border-radius: 24px; overflow: hidden; background: #000; border: 1px solid #2A333F; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+  .demo .ivi video { width: 1284px; height: 602px; object-fit: cover; display: block; }
+  .demo .ivi .tag { position: absolute; left: 20px; top: 16px; background: rgba(11,15,20,.78); border: 1px solid #2A333F; color: var(--white); font-size: 16px; font-weight: 700; padding: 8px 14px; border-radius: 999px; }
+  .demo .phone { position: absolute; left: 1398px; top: 118px; width: 430px; height: 862px; border-radius: 48px; background: #111; border: 10px solid #1C2430; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+  .demo .phone iframe { width: 410px; height: 842px; border: 0; display: block; background: #F6F3EF; }
+  .demo .phone .tag { position: absolute; left: 50%; transform: translateX(-50%); bottom: 16px; background: rgba(0,44,95,.92); color: #fff; font-size: 14px; font-weight: 700; padding: 6px 12px; border-radius: 999px; white-space: nowrap; }
+  .caption { position: absolute; left: 56px; bottom: 60px; width: 1284px; display: flex; align-items: center; gap: 18px; opacity: 0; transform: translateY(16px); }
+  .caption .n { flex: none; width: 56px; height: 56px; border-radius: 50%; background: var(--active); color: var(--ink); font-weight: 800; font-size: 26px; display: flex; align-items: center; justify-content: center; }
+  .caption .t { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; }
+  .caption .t small { display: block; font-size: 20px; color: var(--muted); font-weight: 500; margin-top: 4px; }
+  .signal { position: absolute; left: 56px; top: 94px; display: flex; gap: 10px; }
+  .signal span { font-family: "SF Mono", Menlo, monospace; font-size: 15px; color: #7FB7D9; background: rgba(11,15,20,.85); border: 1px solid #2A333F; padding: 6px 12px; border-radius: 999px; opacity: .0; }
+  .signal span.on { opacity: 1; }
+
+  /* 아키텍처/검증 장면 */
+  .arch h2 { position: absolute; left: 72px; top: 110px; font-size: 56px; font-weight: 800; letter-spacing: -0.03em; }
+  .arch .flow { position: absolute; left: 72px; top: 230px; display: flex; align-items: center; gap: 22px; }
+  .arch .node { background: #151B23; border: 1px solid #2A333F; border-radius: 24px; padding: 26px 30px; min-width: 300px; opacity: 0; transform: translateY(20px); }
+  .arch .node .h { font-size: 26px; font-weight: 800; }
+  .arch .node .d { font-size: 17px; color: var(--muted); margin-top: 8px; line-height: 1.45; }
+  .arch .arrow { font-size: 44px; color: var(--active); opacity: 0; }
+  .arch .proof { position: absolute; left: 72px; top: 560px; display: flex; gap: 24px; }
+  .arch .proof div { background: #0F141B; border: 1px solid #2A333F; border-radius: 20px; padding: 24px 28px; width: 580px; opacity: 0; }
+  .arch .proof b { display:block; font-size: 22px; color: var(--active); margin-bottom: 10px; }
+  .arch .proof p { font-size: 19px; color: #C9D1DB; line-height: 1.5; }
+
+  /* 엔딩 */
+  .end h1 { position: absolute; left: 72px; top: 380px; font-size: 92px; font-weight: 800; letter-spacing: -0.04em; line-height: 1.1; }
+  .end h1 em { color: var(--active); font-style: normal; }
+  .end p { position: absolute; left: 76px; top: 620px; font-size: 30px; color: var(--muted); line-height: 1.6; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="brandbar"><b>마중</b><span>MAJUNG</span><span class="pill" id="pill">Pleos Connect 차량용 앱</span></div>
+  <div class="credit">현대자동차그룹 차량용 앱 개발 공모전 · 시연 영상 (Android Automotive 에뮬레이터 2560×1440 실녹화)</div>
+
+  <section class="layer title" id="L-title">
+    <div class="rule"></div>
+    <h1><small>CURBSIDE PICKUP · PLEOS CONNECT</small>폰은 모르고<br/>차만 아는 3가지로<br/>끝내는 안심 픽업</h1>
+    <p>학원가·역 앞 마지막 100m — "어디야? 무슨 간판 앞이야?" 통화를 차량 신호로 끝냅니다</p>
+  </section>
+
+  <section class="layer three" id="L-three">
+    <h2>스마트폰 위치 공유가 <em>모르는 것</em></h2>
+    <div class="sub">택시 앱이 이미 하는 위치·도착 시간·번호판 표시가 아니라, 차량 신호에서만 나오는 사실로 판단합니다</div>
+    <div class="cards">
+      <div class="card" id="c1"><div class="k">01</div><div class="phone">차가 정말 멈췄는지</div><div class="car">기어 P + 차속 0 일 때만</div><div class="sdk">Gear.registerGearSelection · PERF_VEHICLE_SPEED</div><div class="does">그때서야 동승자 웹이 <b>"지금 타도 돼요"</b>로 바뀝니다</div></div>
+      <div class="card" id="c2"><div class="k">02</div><div class="phone">아이가 어느 문을 열었는지</div><div class="car">차도 쪽 문 열림 즉시 감지</div><div class="sdk">Door.registerDoorPosition(ROW_2_LEFT)</div><div class="does">운전 부하 게이트를 우회하는 <b>즉시 음성 경고</b></div></div>
+      <div class="card" id="c3"><div class="k">03</div><div class="phone">안전벨트를 맸는지</div><div class="car">문 닫힘 + 벨트 체결 감지</div><div class="sdk">Seat.registerSeatBeltBuckledState</div><div class="does">공유 링크 <b>자동 파기</b> · 창문·조명·공조 원복</div></div>
+    </div>
+  </section>
+
+  <section class="layer demo" id="L-demo">
+    <div class="signal" id="sig"></div>
+    <div class="ivi"><video id="rec" muted playsinline preload="auto"></video><div class="tag">차량 화면 · 실제 앱 녹화 (sim 플레이버 · 신호 주입 시나리오)</div></div>
+    <div class="phone"><iframe id="web" src="about:blank"></iframe><div class="tag">동승자 무설치 웹 · 실시간 중계 상태 재생</div></div>
+    <div class="caption" id="cap"><div class="n" id="capn">1</div><div class="t" id="capt">픽업 시작<small id="caps">기준 간판 합의 · 일회성 링크 발급</small></div></div>
+  </section>
+
+  <section class="layer arch" id="L-arch">
+    <h2>신호가 흐름을 움직입니다 — 운전자가 누르는 버튼은 하나</h2>
+    <div class="flow">
+      <div class="node" id="n1"><div class="h">Vehicle SDK · AAOS</div><div class="d">gear · brake · steering · wiper · turn signal<br/>door×4 · seat×3 · belt×3 · low beam<br/>PERF_VEHICLE_SPEED · FusedLocation · NaviHelper TBT</div></div>
+      <div class="arrow" id="a1">→</div>
+      <div class="node" id="n2"><div class="h">VehicleSignalHub</div><div class="d">콜백을 하나의 StateFlow로 합치고<br/>조향 각속도·추정 차속 계산</div></div>
+      <div class="arrow" id="a2">→</div>
+      <div class="node" id="n3"><div class="h">SignalDrivenPickupCoordinator</div><div class="d">신호 변화(edge)로 6단계 자동 전진<br/>운전 부하 ≥ 0.45 → 안내 보류</div></div>
+      <div class="arrow" id="a3">→</div>
+      <div class="node" id="n4"><div class="h">동승자 웹 · 차량 제어</div><div class="d">VehicleFacts만 전달(원시 좌표 폐기)<br/>잠금 해제·창문·독서등·공조 → 원복</div></div>
+    </div>
+    <div class="proof">
+      <div id="p1"><b>검증</b><p>유닛 테스트 15건 통과 · 중계 서버 E2E 통과<br/>sim·pleos 릴리스 APK 빌드 성공 · Android Automotive 에뮬레이터 실행</p></div>
+      <div id="p2"><b>안전 설계</b><p>원격 도어 개방 없음(잠금 해제만, P단 + 운전자 확인 후)<br/>동승자 폰 GPS 미수집 · 링크 20분 TTL · 탑승 즉시 파기</p></div>
+      <div id="p3"><b>호환성</b><p>checkXXXCapabilities로 트림별 능력 조회 → 센서 없는 트림은 수동 종료 모드<br/>Pleos TTS 실패 시 Android TTS 폴백</p></div>
+    </div>
+  </section>
+
+  <section class="layer end" id="L-end">
+    <h1>차가 아는 사실로<br/><em>안심하고 타는</em> 마지막 100m</h1>
+    <p>마중 (MAJUNG) · Pleos Connect · Vehicle 2.3.2 / NaviHelper 3.0.5 / FusedLocation 1.1.3 / TextToSpeech 3.3.1<br/>소스·APK: GitHub 저장소 apk/ 폴더</p>
+  </section>
+</div>
+
+<script>
+// ---------- 타임라인 (ms). TL 은 render.mjs 가 생성한 timeline.json 으로 덮어쓴다 ----------
+const Q = new URLSearchParams(location.search);
+const TL = { scenes: {}, recordingOffsetMs: 0, events: [], captions: [], webStates: [] };
+window.__ready = false;
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ease = (x) => 1 - Math.pow(1 - clamp(x, 0, 1), 3);
+const fade = (el, t, start, end, inMs = 500, outMs = 500) => {
+  let o = 0;
+  if (t >= start && t <= end) o = Math.min(ease((t - start) / inMs), ease((end - t) / outMs));
+  el.style.opacity = o.toFixed(3);
+  return o;
+};
+const rise = (el, t, at, dur = 600) => { const p = ease((t - at) / dur); el.style.opacity = p.toFixed(3); el.style.transform = `translateY(${(1 - p) * 40}px)`; };
+
+const $ = (id) => document.getElementById(id);
+const video = $("rec"); const web = $("web");
+let webLoaded = false;
+
+async function init() {
+  try {
+    const tl = await fetch(Q.get("timeline") || "timeline.json").then((r) => r.json());
+    Object.assign(TL, tl);
+    video.src = Q.get("video") || tl.video || "recording.mp4";
+    await new Promise((r, j) => { video.onloadedmetadata = r; video.onerror = () => j(new Error("video load error")); video.load(); });
+    web.src = Q.get("web") || tl.web || "web.html";
+    await new Promise((r) => { web.onload = r; });
+    webLoaded = true;
+    window.__ready = true;
+  } catch (e) { window.__initError = String(e); }
+}
+
+function seekVideo(ms) {
+  const s = TL.scenes.demo;
+  if (!isFinite(video.duration)) return Promise.resolve();
+  const local = clamp((ms - s.start) / 1000 + (TL.recordingOffsetMs / 1000), 0, Math.max(0, video.duration - 0.05));
+  if (Math.abs(video.currentTime - local) < 0.005) return Promise.resolve();
+  return new Promise((r) => {
+    const done = () => { video.removeEventListener("seeked", done); clearTimeout(t); r(); };
+    const t = setTimeout(done, 3000); // seeked 가 오지 않아도 멈추지 않는다
+    video.addEventListener("seeked", done); video.currentTime = local;
+  });
+}
+
+function applyWebState(ms) {
+  if (!webLoaded) return;
+  const w = web.contentWindow;
+  const rel = ms - TL.scenes.demo.start;
+  let last = null; let shredded = false;
+  for (const st of TL.webStates) { if (st.t <= rel) { if (st.event === "SESSION_SHREDDED") shredded = true; else last = st.data; } }
+  if (shredded) { w.__majungShowShredded && w.__majungShowShredded(); return; }
+  if (last && w.__majungApplyState) w.__majungApplyState(last);
+}
+
+window.__seek = async (ms) => {
+  const S = TL.scenes;
+  // 레이어 페이드
+  fade($("L-title"), ms, S.title.start, S.title.end, 700, 500);
+  fade($("L-three"), ms, S.three.start, S.three.end, 500, 500);
+  fade($("L-demo"), ms, S.demo.start, S.demo.end, 500, 500);
+  fade($("L-arch"), ms, S.arch.start, S.arch.end, 500, 500);
+  fade($("L-end"), ms, S.end.start, S.end.end, 700, 900);
+
+  // 3가지 카드 순차 등장
+  rise($("c1"), ms, S.three.start + 700); rise($("c2"), ms, S.three.start + 1500); rise($("c3"), ms, S.three.start + 2300);
+  // 아키텍처 노드
+  ["n1","a1","n2","a2","n3","a3","n4"].forEach((id, i) => rise($(id), ms, S.arch.start + 500 + i * 320, 400));
+  ["p1","p2","p3"].forEach((id, i) => rise($(id), ms, S.arch.start + 3200 + i * 400, 500));
+
+  if (ms >= S.demo.start - 50 && ms <= S.demo.end + 50) {
+    await seekVideo(ms);
+    applyWebState(ms);
+    const rel = ms - S.demo.start;
+    // 자막
+    let c = null; for (const cap of TL.captions) if (rel >= cap.t) c = cap;
+    const capEl = $("cap");
+    if (c) { $("capn").textContent = c.n; $("capt").firstChild.textContent = c.title; $("caps").textContent = c.sub; rise(capEl, ms, S.demo.start + c.t, 400); } else capEl.style.opacity = 0;
+    // 신호 칩
+    const sig = $("sig"); if (!sig.childElementCount) for (const e of TL.events) { const sp = document.createElement("span"); sp.textContent = e.label; sig.appendChild(sp); }
+    [...sig.children].forEach((sp, i) => { const e = TL.events[i]; sp.classList.toggle("on", rel >= e.t && rel <= e.t + (e.hold || 6000)); });
+  }
+  $("pill").textContent = ms < S.demo.start ? "Pleos Connect 차량용 앱" : (ms < S.arch.start ? "실제 앱 녹화 · 실시간 중계" : "Vehicle 2.3.2 · NaviHelper 3.0.5 · FusedLocation 1.1.3 · TTS 3.3.1");
+  return true;
+};
+init();
+</script>
+</body>
+</html>

@@ -202,10 +202,11 @@ class PickupEtaOrchestrator(
         )
 
         // 5·6단계에 들어간 뒤에는 위치 갱신으로 단계가 뒤로 돌아가지 않는다.
+        // 4단계(정차)는 차속 0만으로는 부족하다 — 기어 P가 확인된 VehicleFacts.stoppedInPark 일 때만 넘어간다.
         val nextPhase = when {
             current.phase.ordinal >= PickupPhase.STEP5_BOARDING_WELCOME.ordinal -> current.phase
             manualPreset != null -> PickupPhase.STEP4_CURBSIDE_STOPPED
-            speedKmh <= 1.0f && distanceMeters <= 60 -> PickupPhase.STEP4_CURBSIDE_STOPPED
+            current.vehicleFacts.stoppedInPark && distanceMeters <= 60 -> PickupPhase.STEP4_CURBSIDE_STOPPED
             eval.approachTriggered -> maxPhase(current.phase, PickupPhase.STEP2_APPROACHING)
             else -> current.phase
         }

@@ -8,28 +8,38 @@ import ai.pleos.playground.navi.constants.WaypointIndex
 import ai.pleos.playground.navi.data.RequestWaypointInfo
 import ai.pleos.playground.navi.data.RouteInfo
 import ai.pleos.playground.navi.data.RouteWithWaypointsRequest
+import ai.pleos.playground.navi.data.TBTInfo
 import ai.pleos.playground.navi.helper.NaviHelper
+import ai.pleos.playground.navi.helper.listener.NaviHelperEventListener
 import ai.pleos.playground.tts.TextToSpeech
 import ai.pleos.playground.tts.constant.Mode
 import ai.pleos.playground.vehicle.Vehicle
 import ai.pleos.playground.vehicle.api.model.area.DoorArea
 import ai.pleos.playground.vehicle.api.model.area.SeatArea
 import ai.pleos.playground.vehicle.api.model.area.WindowArea
+import ai.pleos.playground.vehicle.api.model.capability.AccessType
+import ai.pleos.playground.vehicle.api.model.capability.AreaBounds
+import ai.pleos.playground.vehicle.api.model.capability.CapabilityConfig
 import ai.pleos.playground.vehicle.constant.area.DoorValue
 import ai.pleos.playground.vehicle.constant.area.SeatValue
 import ai.pleos.playground.vehicle.constant.area.TurnSignalValue
 import ai.pleos.playground.vehicle.constant.area.WindowValue
+import ai.pleos.playground.vehicle.constant.control.LightState
 import ai.pleos.playground.vehicle.constant.control.LightSwitch
 import ai.pleos.playground.vehicle.constant.control.VehicleGear
 import ai.pleos.playground.vehicle.constant.control.WiperState
+import ai.pleos.playground.vehicle.constant.unit.TemperatureUnit
 import ai.pleos.playground.vehicle.listener.BrakePedalStatusListener
 import ai.pleos.playground.vehicle.listener.DoorPositionListener
 import ai.pleos.playground.vehicle.listener.GearSelectionListener
+import ai.pleos.playground.vehicle.listener.LightStateListener
 import ai.pleos.playground.vehicle.listener.SeatBeltBuckledStateListener
 import ai.pleos.playground.vehicle.listener.SeatOccupancyListener
 import ai.pleos.playground.vehicle.listener.SteeringWheelAngleListener
 import ai.pleos.playground.vehicle.listener.TurnSignalStateListener
 import ai.pleos.playground.vehicle.listener.WiperStateListener
+import io.majung.pleos.audio.AndroidPlatformTtsAdapter
+import io.majung.pleos.audio.FallbackTtsEngine
 import io.majung.pleos.audio.PleosTtsEngine
 import io.majung.pleos.finder.PleosTurnSignalState
 import io.majung.pleos.model.GearPosition
@@ -85,11 +95,27 @@ class PleosOnDeviceWelcomeTtsAdapter(
     }
 }
 
-class PleosNaviSdkGateway(context: Context) : NaviRouteGateway {
+/**
+ * NaviHelper 3.0.5 경로 요청/취소 + TBT(다음 회전까지 거리) 이벤트 구독.
+ * TBT 거리는 운전 부하 지수(DLI)의 입력이 되어, 회전 150m 전에는 일반 안내가 보류된다.
+ */
+class PleosNaviSdkGateway(
+    context: Context,
+    private val onNextTurnDistanceMeters: (Int) -> Unit = {}
+) : NaviRouteGateway {
     private val naviHelper = NaviHelper(context.applicationContext)
+    private val eventListener = object : NaviHelperEventListener {
+        override fun onTBTInfo(list: List<TBTInfo>) {
+            val next = list.firstOrNull()
+            onNextTurnDistanceMeters(next?.distance?.toInt()?.coerceAtLeast(0) ?: Int.MAX_VALUE)
+        }
+        override fun onRouteEnded() = onNextTurnDistanceMeters(Int.MAX_VALUE)
+        override fun onRouteCancelled() = onNextTurnDistanceMeters(Int.MAX_VALUE)
+    }
 
     fun initialize() {
         runCatching { naviHelper.initialize() }
+        runCatching { naviHelper.addListener(eventListener) }
     }
 
     override suspend fun dispatchRouteWithWaypoints(slice: NaviRouteSlice): Boolean = runCatching {
@@ -127,8 +153,26 @@ class PleosNaviSdkGateway(context: Context) : NaviRouteGateway {
     }.getOrDefault(false)
 
     fun release() {
+        runCatching { naviHelper.removeListener(eventListener) }
         runCatching { naviHelper.release() }
     }
+}
+
+private fun SeatArea.toSeatZone(): SeatZone? = when (values.firstOrNull()) {
+    SeatValue.ROW_1_LEFT -> SeatZone.ROW_1_LEFT
+    SeatValue.ROW_1_RIGHT -> SeatZone.ROW_1_RIGHT
+    SeatValue.ROW_2_LEFT -> SeatZone.ROW_2_LEFT
+    SeatValue.ROW_2_RIGHT -> SeatZone.ROW_2_RIGHT
+    else -> null
+}
+
+private fun AccessType?.isWritable(): Boolean = this == AccessType.WRITE || this == AccessType.READ_WRITE
+private fun AccessType?.isReadable(): Boolean = this == AccessType.READ || this == AccessType.READ_WRITE
+
+/** SDK 콜백(onComplete/onFailed)을 한 번만 코루틴으로 되돌린다. 예외·중복 호출 모두 default로 수렴. */
+private suspend fun <T> sdkCall(default: T, block: (resume: (T) -> Unit) -> Unit): T = suspendCancellableCoroutine { cont ->
+    val once = { v: T -> if (cont.isActive) cont.resume(v) }
+    runCatching { block(once) }.onFailure { once(default) }
 }
 
 private fun SeatZone.toDoorValue(): DoorValue = when (this) {
@@ -155,6 +199,15 @@ class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicl
 
     private inline fun fanOut(block: VehicleTelemetryListener.() -> Unit) = listeners.forEach { runCatching { it.block() } }
     private fun log(line: String) = fanOut { onTelemetrySourceLog(line) }
+
+    /** NaviHelper TBT → 허브 (브리지가 연결) */
+    fun publishNextTurnDistance(meters: Int) = fanOut { onNextTurnDistanceChanged(meters) }
+    fun publishLog(line: String) = log(line)
+
+    private val lowBeamListener = object : LightStateListener {
+        override fun onLightStateUpdated(state: LightState?) { fanOut { onLowBeamChanged(state == LightState.ON) } }
+        override fun onFailed(e: Exception) = log("lowBeam 콜백 실패: ${e.message}")
+    }
 
     private val gearListener = object : GearSelectionListener {
         override fun onSelected(gear: VehicleGear?) {
@@ -217,33 +270,39 @@ class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicl
         true
     }.getOrDefault(false)
 
+    /**
+     * 공식 호환성 안내("차종에 따라 다름 → checkXXXCapabilities로 확인")대로 도메인별 능력을 실제 조회한다.
+     * 결과에 따라 탑승 판정 모드(센서 퓨전 / 도어·벨트 추론 / 수동)와 공조 사전 설정 범위가 결정된다.
+     */
     override suspend fun probeCapabilities(): VehicleCapabilityMatrix {
-        val beltAreas = suspendCancellableCoroutine<Int> { cont ->
-            runCatching {
-                vehicle.getSeat().checkSeatBeltBuckledCapabilities({ areas: List<SeatArea> -> cont.resume(areas.size) }, { cont.resume(0) })
-            }.onFailure { cont.resume(0) }
+        val beltAreas = sdkCall(0) { res -> vehicle.getSeat().checkSeatBeltBuckledCapabilities({ areas: List<SeatArea> -> res(areas.size) }, { res(0) }) }
+        val occupancyAreas = sdkCall(0) { res -> vehicle.getSeat().checkSeatOccupancyCapabilities({ areas: List<SeatArea> -> res(areas.size) }, { res(0) }) }
+        val doorPositionAreas = sdkCall(0) { res -> vehicle.getDoor().checkDoorPositionCapabilities({ m: Map<DoorArea, *> -> res(m.size) }, { res(0) }) }
+        val doorLockAreas = sdkCall(0) { res -> vehicle.getDoor().checkDoorLockCapabilities({ areas: List<DoorArea> -> res(areas.size) }, { res(0) }) }
+        val windowAreas = sdkCall(0) { res -> vehicle.getWindow().checkWindowPositionCapabilities({ m: Map<WindowArea, *> -> res(m.size) }, { res(0) }) }
+
+        val fan = sdkCall<Pair<AccessType?, Map<SeatZone, IntBounds>>>(null to emptyMap()) { res ->
+            vehicle.getHVAC().checkHvacFanSpeedCapabilities(
+                { cfg: CapabilityConfig, m: Map<SeatArea, AreaBounds<Int>> ->
+                    res(cfg.accessType to m.mapNotNull { (area, b) -> area.toSeatZone()?.let { it to IntBounds(b.minValue, b.maxValue) } }.toMap())
+                },
+                { res(null to emptyMap()) }
+            )
         }
-        val occupancyAreas = suspendCancellableCoroutine<Int> { cont ->
-            runCatching {
-                vehicle.getSeat().checkSeatOccupancyCapabilities({ areas: List<SeatArea> -> cont.resume(areas.size) }, { cont.resume(0) })
-            }.onFailure { cont.resume(0) }
+        val temp = sdkCall<AccessType?>(null) { res ->
+            vehicle.getHVAC().checkHvacTemperatureCapabilities({ cfg: CapabilityConfig, _: Map<SeatArea, AreaBounds<Float>> -> res(cfg.accessType) }, { res(null) })
         }
-        val doorPositionAreas = suspendCancellableCoroutine<Int> { cont ->
-            runCatching {
-                vehicle.getDoor().checkDoorPositionCapabilities({ m: Map<DoorArea, *> -> cont.resume(m.size) }, { cont.resume(0) })
-            }.onFailure { cont.resume(0) }
+        val recirc = sdkCall<AccessType?>(null) { res ->
+            vehicle.getHVAC().checkHvacRecirculationCapabilities({ cfg: CapabilityConfig, _: List<SeatArea> -> res(cfg.accessType) }, { res(null) })
         }
-        val doorLockAreas = suspendCancellableCoroutine<Int> { cont ->
-            runCatching {
-                vehicle.getDoor().checkDoorLockCapabilities({ areas: List<DoorArea> -> cont.resume(areas.size) }, { cont.resume(0) })
-            }.onFailure { cont.resume(0) }
+        val seatHeat = sdkCall<AccessType?>(null) { res ->
+            vehicle.getSeat().checkSeatTemperatureCapabilities({ cfg: CapabilityConfig, _: Map<SeatArea, AreaBounds<Int>> -> res(cfg.accessType) }, { res(null) })
         }
-        val windowAreas = suspendCancellableCoroutine<Int> { cont ->
-            runCatching {
-                vehicle.getWindow().checkWindowPositionCapabilities({ m: Map<WindowArea, *> -> cont.resume(m.size) }, { cont.resume(0) })
-            }.onFailure { cont.resume(0) }
-        }
-        log("capabilities: belt=$beltAreas occupancy=$occupancyAreas doorPos=$doorPositionAreas doorLock=$doorLockAreas window=$windowAreas")
+
+        log(
+            "capabilities: belt=$beltAreas occupancy=$occupancyAreas doorPos=$doorPositionAreas doorLock=$doorLockAreas window=$windowAreas " +
+                "fan=${fan.first}(${fan.second.keys.joinToString()}) temp=$temp recirc=$recirc seatHeat=$seatHeat"
+        )
         return VehicleCapabilityMatrix(
             doorPositionSupported = doorPositionAreas > 0,
             doorLockWritable = doorLockAreas > 0,
@@ -251,9 +310,13 @@ class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicl
             row1RightOccupancySupported = occupancyAreas > 0,
             row2OccupancySupported = occupancyAreas > 1,
             seatBeltBuckledSupported = beltAreas > 0,
-            hvacFanSupported = false,
-            hvacFanWritable = false,
-            hvacFanBoundsByZone = mapOf(SeatZone.ROW_1_LEFT to IntBounds(1, 5)),
+            seatHeaterSupported = seatHeat.isReadable(),
+            seatHeaterWritable = seatHeat.isWritable(),
+            hvacFanSupported = fan.first.isReadable(),
+            hvacFanWritable = fan.first.isWritable(),
+            hvacFanBoundsByZone = fan.second,
+            hvacRecirculationWritable = recirc.isWritable(),
+            hvacTempWritable = temp.isWritable(),
             readingLightWritable = true,
             steeringAngleSupported = true,
             brakePedalSupported = true,
@@ -279,15 +342,40 @@ class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicl
         }.onFailure { cont.resume(null) }
     }
 
-    // 공조·앰비언트는 이번 범위에서 제어하지 않는다(미지원 → null/false 반환, 게이트웨이가 건너뜀).
-    override suspend fun readSeatHeaterLevel(zone: SeatZone): Int? = null
-    override suspend fun writeSeatHeaterLevel(zone: SeatZone, level: Int): Boolean = false
-    override suspend fun readHvacFanSpeed(zone: SeatZone): Int? = null
-    override suspend fun writeHvacFanSpeed(zone: SeatZone, speed: Int): Boolean = false
-    override suspend fun readHvacRecirculationOn(): Boolean? = null
-    override suspend fun writeHvacRecirculationOn(recirculate: Boolean): Boolean = false
-    override suspend fun readHvacTempCelsius(zone: SeatZone): Float? = null
-    override suspend fun writeHvacTempCelsius(zone: SeatZone, tempC: Float): Boolean = false
+    // ---- 공조·열선: 도착 전 사전 설정 → 세션 종료 시 스냅샷으로 원복 (PleosCapabilityGateway) ----
+    override suspend fun readSeatHeaterLevel(zone: SeatZone): Int? = sdkCall<Int?>(null) { res ->
+        vehicle.getSeat().getHvacSeatTemperature(SeatArea(zone.toSeatValue()), { v -> res(v) }, { res(null) })
+    }
+
+    override suspend fun writeSeatHeaterLevel(zone: SeatZone, level: Int): Boolean = sdkCall(false) { res ->
+        vehicle.getSeat().setHvacSeatTemperature(SeatArea(zone.toSeatValue()), level, { _, _ -> res(true) }, { res(false) })
+    }
+
+    override suspend fun readHvacFanSpeed(zone: SeatZone): Int? = sdkCall<Int?>(null) { res ->
+        vehicle.getHVAC().getHvacFanSpeed(SeatArea(zone.toSeatValue()), { v -> res(v) }, { res(null) })
+    }
+
+    override suspend fun writeHvacFanSpeed(zone: SeatZone, speed: Int): Boolean = sdkCall(false) { res ->
+        vehicle.getHVAC().setHvacFanSpeed(SeatArea(zone.toSeatValue()), speed, { _, _ -> res(true) }, { res(false) })
+    }
+
+    override suspend fun readHvacRecirculationOn(): Boolean? = sdkCall<Boolean?>(null) { res ->
+        vehicle.getHVAC().getHvacRecirculationState(SeatArea(SeatValue.ROW_1_LEFT), { v -> res(v) }, { res(null) })
+    }
+
+    override suspend fun writeHvacRecirculationOn(recirculate: Boolean): Boolean = sdkCall(false) { res ->
+        vehicle.getHVAC().setHvacRecirculation(SeatArea(SeatValue.ROW_1_LEFT), recirculate, { _, _ -> res(true) }, { res(false) })
+    }
+
+    override suspend fun readHvacTempCelsius(zone: SeatZone): Float? = sdkCall<Float?>(null) { res ->
+        vehicle.getHVAC().getHvacTemperature(SeatArea(zone.toSeatValue()), TemperatureUnit.CELSIUS, { v -> res(v) }, { res(null) })
+    }
+
+    override suspend fun writeHvacTempCelsius(zone: SeatZone, tempC: Float): Boolean = sdkCall(false) { res ->
+        vehicle.getHVAC().setHvacTemperature(SeatArea(zone.toSeatValue()), tempC, TemperatureUnit.CELSIUS, { _, _ -> res(true) }, { res(false) })
+    }
+
+    // 앰비언트 조명은 이번 범위 밖 (미지원 → 게이트웨이가 건너뜀)
     override suspend fun readAmbientColorArgb(zone: SeatZone): Int? = null
     override suspend fun writeAmbientColorArgb(zone: SeatZone, argb32: Int): Boolean = false
 
@@ -304,6 +392,7 @@ class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicl
         attempt("steering") { vehicle.getSteeringWheel().registerSteeringWheelAngle(steeringListener) }
         attempt("wiper") { vehicle.getWiper().registerWiperState(WindowArea(WindowValue.FRONT_WINDSHIELD), wiperListener) }
         attempt("turnSignal") { vehicle.getTurnSignal().registerTurnSignalState(turnListener) }
+        attempt("lowBeam") { vehicle.getLight().registerLowBeamLightState(lowBeamListener) }
         doorListeners.forEach { (zone, l) -> attempt("door[$zone]") { vehicle.getDoor().registerDoorPosition(DoorArea(zone.toDoorValue()), l) } }
         occupancyListeners.forEach { (zone, l) -> attempt("seat[$zone]") { vehicle.getSeat().registerSeatOccupancy(SeatArea(zone.toSeatValue()), l) } }
         beltListeners.forEach { (zone, l) -> attempt("belt[$zone]") { vehicle.getSeat().registerSeatBeltBuckledState(SeatArea(zone.toSeatValue()), l) } }
@@ -311,6 +400,7 @@ class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicl
         // 현재값 1회 조회 → 콜백이 변화 시점에만 오더라도 초기 상태를 확보한다.
         runCatching { vehicle.getGear().getCurrentGearSelectionState({ g -> gearListener.onSelected(g) }, { }) }
         runCatching { vehicle.getTurnSignal().getCurrentTurnSignalState({ v -> turnListener.onTurnSignalStateUpdated(v) }, { }) }
+        runCatching { vehicle.getLight().getCurrentLowBeamLightState({ s -> lowBeamListener.onLightStateUpdated(s) }, { }) }
         doorListeners.forEach { (zone, l) ->
             runCatching { vehicle.getDoor().getCurrentDoorPosition(DoorArea(zone.toDoorValue()), { p -> l.onPositionUpdated(p) }, { }) }
         }
@@ -328,6 +418,7 @@ class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicl
             runCatching { vehicle.getSteeringWheel().unregisterSteeringWheelAngle(steeringListener) }
             runCatching { vehicle.getWiper().unregisterWiperState(WindowArea(WindowValue.FRONT_WINDSHIELD), wiperListener) }
             runCatching { vehicle.getTurnSignal().unregisterTurnSignalState(turnListener) }
+            runCatching { vehicle.getLight().unregisterLowBeamLightState(lowBeamListener) }
             doorListeners.forEach { (zone, l) -> runCatching { vehicle.getDoor().unregisterDoorPosition(DoorArea(zone.toDoorValue()), l) } }
             occupancyListeners.forEach { (zone, l) -> runCatching { vehicle.getSeat().unregisterSeatOccupancy(SeatArea(zone.toSeatValue()), l) } }
             beltListeners.forEach { (zone, l) -> runCatching { vehicle.getSeat().unregisterSeatBeltBuckledState(SeatArea(zone.toSeatValue()), l) } }
@@ -341,16 +432,18 @@ class PleosRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
     private val appContext = context.applicationContext
     private val vehicle = Vehicle(appContext)
     private val fusedLocation = FusedLocation(appContext)
-    private val pleosNavi = PleosNaviSdkGateway(appContext)
+    private val lowLevel = PleosLowLevelVehicleAdapter(vehicle)
+    private val pleosNavi = PleosNaviSdkGateway(appContext) { meters -> lowLevel.publishNextTurnDistance(meters) }
     private val pleosTts = PleosOnDeviceWelcomeTtsAdapter(appContext, useHybridServerMode = false)
     private var locationInitialized = false
     private var streamingListener: FusedLocationListener? = null
 
     override val runtimeBadgeLabel: String = "[SDK 실연동]"
     override val usesRealPleosSdk: Boolean = true
-    override val lowLevelHardware: LowLevelVehicleHardware = PleosLowLevelVehicleAdapter(vehicle)
+    override val lowLevelHardware: LowLevelVehicleHardware = lowLevel
     override val naviGateway: NaviRouteGateway = pleosNavi
-    override val ttsEngine: PleosTtsEngine = pleosTts
+    // Pleos TTS(ON_DEVICE)가 예외를 내는 트림에서는 Android TTS로 같은 문장을 재생한다(안전 경고 누락 방지).
+    override val ttsEngine: PleosTtsEngine = FallbackTtsEngine(pleosTts, AndroidPlatformTtsAdapter(appContext)) { note -> lowLevel.publishLog(note) }
 
     override fun initialize(onInitializedLog: (String) -> Unit) {
         val statusParts = mutableListOf<String>()
@@ -538,7 +631,7 @@ class PleosRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
 
     override fun release() {
         stopLocationUpdates()
-        runCatching { pleosTts.release() }
+        runCatching { ttsEngine.release() }
         runCatching { pleosNavi.release() }
         runCatching { lowLevelHardware.release() }
         if (locationInitialized) {

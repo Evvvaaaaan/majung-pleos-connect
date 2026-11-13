@@ -3,6 +3,7 @@ package io.majung.pleos.orchestrator
 import io.majung.pleos.audio.AudioFocusCoordinator
 import io.majung.pleos.finder.CurbsideCarFinderEngine
 import io.majung.pleos.finder.ManualOffsetPreset
+import io.majung.pleos.model.PassengerProfile
 import io.majung.pleos.model.PickupPhase
 import io.majung.pleos.model.SeatZone
 import io.majung.pleos.model.VehicleFacts
@@ -33,7 +34,8 @@ data class CoordinatorTrace(
     val windowPercent: Int = 0,
     val driverUnlocked: Boolean = false,
     val approachAnnounced: Boolean = false,
-    val greetingSpoken: Boolean = false
+    val greetingSpoken: Boolean = false,
+    val cabinNote: String? = null
 )
 
 /**
@@ -69,6 +71,7 @@ class SignalDrivenPickupCoordinator(
     private var readingLightOn = false
     private var windowPercent = 0
     private var lastTickMs = 0L
+    private var cabinNote: String? = null
 
     private val _trace = MutableStateFlow(CoordinatorTrace())
     val trace: StateFlow<CoordinatorTrace> = _trace.asStateFlow()
@@ -81,6 +84,7 @@ class SignalDrivenPickupCoordinator(
         readingLightOn = false
         windowPercent = 0
         lastLocationBroadcastMs = 0L
+        cabinNote = null
         publishTrace("새 픽업 세션 · 자동 흐름 초기화")
     }
 
@@ -101,6 +105,7 @@ class SignalDrivenPickupCoordinator(
                     steeringRateDegPerSec = state.steeringRateDegPerSec,
                     isBrakePressed = state.brakePressed,
                     isWiperHigh = state.wiperOn,
+                    nextTbtDistanceMeters = state.nextTurnDistanceMeters,
                     inSchoolZoneCaution = stop?.rawPinWasInSchoolZone == true
                 ),
                 state.gear,
@@ -205,7 +210,19 @@ class SignalDrivenPickupCoordinator(
                 approachAnnounced = true
                 broadcastLocation(state, stop, distance, remaining = (distance / 3).coerceAtLeast(5))
                 orchestrator.emitPickupPrompt("approach", "'${stop.landmarkSignboard}' 앞 정차 지점에 접근 중입니다. 동승자에게 차량 접근을 알렸습니다.", now)
-                publishTrace("접근 감지 · $reason")
+                // 도착 전 사전 공조: 승차 좌석 풍량·온도 준비, 유아 카시트 좌석 열선은 0으로 고정. 세션 종료 시 원복된다.
+                val profile = inputs.passengerProfile
+                val outcome = capabilityGateway.applyArrivalPreconditioning(
+                    profile = PassengerProfile.entries.firstOrNull { it.name == profile.personaType } ?: PassengerProfile.ADULT,
+                    targetZone = stop.targetSeat,
+                    hasCarSeat = profile.hasChildCarSeat
+                )
+                cabinNote = buildString {
+                    append(outcome.appliedFanSpeed?.let { "사전 공조 풍량 $it" } ?: "공조 제어 미지원 트림")
+                    if (outcome.usedSingleZoneFallback && outcome.appliedFanSpeed != null) append(" (단일 존 폴백)")
+                    if (outcome.carSeatHeaterForcedOff) append(" · 카시트 좌석 열선 OFF 고정")
+                }
+                publishTrace("접근 감지 · $reason · $cabinNote")
                 return
             }
         }
@@ -250,11 +267,15 @@ class SignalDrivenPickupCoordinator(
         if (phase != PickupPhase.STEP5_BOARDING_WELCOME) return
         val profile = inputs.passengerProfile
 
-        // (d) 승차 좌석 문 열림 → 야간 독서등 점등(발밑·버클 시인성)
+        // (d) 승차 좌석 문 열림 → 하향등이 켜진 야간에만 독서등 점등(발밑·버클 시인성). 주간에는 생략.
         if (state.isDoorOpen(target) && !prev.isDoorOpen(target) && !readingLightOn) {
-            actuator.setPassengerReadingLight(true) { on, log ->
-                readingLightOn = on
-                publishTrace(log)
+            if (state.lowBeamOn) {
+                actuator.setPassengerReadingLight(true) { on, log ->
+                    readingLightOn = on
+                    publishTrace(log)
+                }
+            } else {
+                publishTrace("승차 문 열림 · 주간(하향등 OFF) → 독서등 생략")
             }
         }
 
@@ -267,7 +288,7 @@ class SignalDrivenPickupCoordinator(
                 driverCheckedSurroundingsAndUnlocked = driverUnlocked,
                 isWiperActiveRain = state.wiperOn,
                 exteriorTempCelsius = 14.0,
-                isNightLowBeamOn = true,
+                isNightLowBeamOn = state.lowBeamOn,
                 boardingDoorOpen = state.isDoorOpen(target),
                 trafficLeftDoorOpen = state.isDoorOpen(SeatZone.ROW_2_LEFT),
                 seatOccupied = true,
@@ -286,7 +307,7 @@ class SignalDrivenPickupCoordinator(
             if (done) {
                 val directive = welcomeEngine.evaluateState(
                     profile = profile, isParkGearZeroSpeed = state.stoppedInPark, driverCheckedSurroundingsAndUnlocked = driverUnlocked,
-                    isWiperActiveRain = state.wiperOn, exteriorTempCelsius = 14.0, isNightLowBeamOn = true,
+                    isWiperActiveRain = state.wiperOn, exteriorTempCelsius = 14.0, isNightLowBeamOn = state.lowBeamOn,
                     boardingDoorOpen = false, trafficLeftDoorOpen = false, seatOccupied = state.isSeated(target), seatBeltBuckledOrManualConfirmed = true
                 )
                 directive.ttsUtterance?.let { audioCoordinator.speakWithDucking("depart-$now", it, isCriticalSafety = false) }
@@ -303,7 +324,8 @@ class SignalDrivenPickupCoordinator(
             actuator.setFrontPassengerWindowPercent(0) { pct, _ -> windowPercent = pct }
             actuator.setPassengerReadingLight(false) { on, _ -> readingLightOn = on }
             driverUnlocked = false
-            publishTrace(if (manual) "수동 탑승 확인 → 창문·조명 원복 · 세션 즉시 파기" else "자동 탑승 확인 → 창문·조명 원복 · 세션 즉시 파기")
+            if (cabinNote != null) cabinNote = "공조·열선 세션 전 상태로 원복"
+            publishTrace(if (manual) "수동 탑승 확인 → 창문·조명·공조 원복 · 세션 즉시 파기" else "자동 탑승 확인 → 창문·조명·공조 원복 · 세션 즉시 파기")
         }
         return ok
     }
@@ -342,7 +364,8 @@ class SignalDrivenPickupCoordinator(
             windowPercent = windowPercent,
             driverUnlocked = driverUnlocked,
             approachAnnounced = approachAnnounced,
-            greetingSpoken = greetingSpoken
+            greetingSpoken = greetingSpoken,
+            cabinNote = cabinNote
         )
     }
 

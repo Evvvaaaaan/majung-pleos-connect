@@ -51,6 +51,10 @@ interface VehicleTelemetryListener {
     fun onDoorStateChanged(zone: SeatZone, isOpen: Boolean, timestampMs: Long)
     fun onSeatOccupancyChanged(zone: SeatZone, isOccupied: Boolean)
     fun onSeatBeltChanged(zone: SeatZone, isBuckled: Boolean, timestampMs: Long)
+    /** 하향등(Low beam) 상태 — 야간 승차 독서등 점등 조건 (Light.registerLowBeamLightState) */
+    fun onLowBeamChanged(isOn: Boolean) {}
+    /** 다음 회전(TBT)까지 남은 거리(m) — 운전 부하 지수 입력 (NaviHelper onTBTInfo). 경로 없음 = Int.MAX_VALUE */
+    fun onNextTurnDistanceChanged(meters: Int) {}
     /** SDK 콜백 실패(onFailed) 또는 미지원 신호를 UI 로그에 투명하게 노출하기 위한 훅 */
     fun onTelemetrySourceLog(line: String) {}
 }

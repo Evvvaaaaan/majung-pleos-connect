@@ -28,6 +28,8 @@ data class VehicleSignalState(
     val doorOpen: Map<SeatZone, Boolean> = emptyMap(),
     val seatOccupied: Map<SeatZone, Boolean> = emptyMap(),
     val beltBuckled: Map<SeatZone, Boolean> = emptyMap(),
+    val lowBeamOn: Boolean = false,
+    val nextTurnDistanceMeters: Int = Int.MAX_VALUE,
     val location: VehicleLocationReading? = null,
     val lastEventLog: String = "차량 신호 대기 중",
     val eventCount: Int = 0,
@@ -94,6 +96,11 @@ class VehicleSignalHub(
 
     override fun onSeatBeltChanged(zone: SeatZone, isBuckled: Boolean, timestampMs: Long) =
         update("belt[$zone]=${if (isBuckled) "BUCKLED" else "UNBUCKLED"}") { it.copy(beltBuckled = it.beltBuckled + (zone to isBuckled)) }
+
+    override fun onLowBeamChanged(isOn: Boolean) = update("lowBeam=${if (isOn) "ON" else "OFF"}") { it.copy(lowBeamOn = isOn) }
+
+    override fun onNextTurnDistanceChanged(meters: Int) =
+        update(if (meters == Int.MAX_VALUE) "tbt=none" else "tbt=${meters}m") { it.copy(nextTurnDistanceMeters = meters) }
 
     override fun onTelemetrySourceLog(line: String) = update(line) { it }
 

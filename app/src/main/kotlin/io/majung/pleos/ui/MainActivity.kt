@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,7 +41,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
@@ -166,6 +170,12 @@ class MainActivity : ComponentActivity() {
             val trace by coordinator.trace.collectAsState()
             val isSim = runtimeBridge.supportsSimulatedScenario
 
+            // Pleos Connect 에뮬레이터(2560×1440 @160dpi)처럼 dp 폭이 큰 IVI에서는 1900dp 기준 레이아웃을 비례 확대해
+            // 운전석에서 읽히는 글자 크기(헤드라인 ≥ 54px)를 유지하면서 전체 흐름이 한 화면에 들어오게 한다. 1900dp 이하에서는 1:1.
+            val configuration = LocalConfiguration.current
+            val baseDensity = LocalDensity.current
+            val iviScale = (configuration.screenWidthDp / 1900f).coerceIn(1f, 1.8f)
+            CompositionLocalProvider(LocalDensity provides Density(baseDensity.density * iviScale, baseDensity.fontScale)) {
             MajungIviScreen(
                 runtimeBadge = runtimeBridge.runtimeBadgeLabel,
                 isDrivingRestricted = isDrivingRestricted,
@@ -192,6 +202,7 @@ class MainActivity : ComponentActivity() {
                 onSimBoardingClick = { runtimeBridge.playSimulatedPassengerBoarding { l -> runOnUiThread { sdkCallbackLog = l } } },
                 onSimWrongDoorClick = { runtimeBridge.playSimulatedTrafficSideDoorMistake { l -> runOnUiThread { sdkCallbackLog = l } } }
             )
+            }
         }
     }
 
@@ -432,11 +443,14 @@ fun MajungIviScreen(
                 PhaseStepper(session.phase)
             }
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            // 상단 두 카드는 높이를 고정한다: 상태 문구·공조 메모가 늘어나도 아래 버튼 행의 위치가 움직이지 않아야
+            // 운전자가 보지 않고도 같은 자리를 누를 수 있다(주행 중 터치 안정성).
+            Row(modifier = Modifier.fillMaxWidth().height(440.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 // 좌: 히어로 상태 카드
                 Column(
                     modifier = Modifier
                         .weight(1.35f)
+                        .fillMaxHeight()
                         .background(if (heroTone == T.Success && session.phase == PickupPhase.STEP5_BOARDING_WELCOME) T.Sand else T.Surface, RoundedCornerShape(28.dp))
                         .border(1.dp, T.Hairline, RoundedCornerShape(28.dp))
                         .padding(28.dp),
@@ -444,8 +458,8 @@ fun MajungIviScreen(
                 ) {
                     val onSand = heroTone == T.Success && session.phase == PickupPhase.STEP5_BOARDING_WELCOME
                     Box(modifier = Modifier.size(width = 56.dp, height = 6.dp).background(heroTone, CircleShape))
-                    Text(headline, color = if (onSand) T.SandInk else T.Ink, fontSize = 40.sp, fontWeight = FontWeight.Bold, lineHeight = 46.sp)
-                    Text(subline, color = if (onSand) T.SandInk.copy(alpha = 0.7f) else T.Muted, fontSize = 18.sp, lineHeight = 26.sp)
+                    Text(headline, color = if (onSand) T.SandInk else T.Ink, fontSize = 40.sp, fontWeight = FontWeight.Bold, lineHeight = 46.sp, maxLines = 2)
+                    Text(subline, color = if (onSand) T.SandInk.copy(alpha = 0.7f) else T.Muted, fontSize = 18.sp, lineHeight = 26.sp, maxLines = 3)
                     Spacer(Modifier.height(4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Chip("번호판 끝 ${plateLast4.ifBlank { "----" }}", T.Ink, filled = true)
@@ -464,6 +478,7 @@ fun MajungIviScreen(
                 Column(
                     modifier = Modifier
                         .weight(1f)
+                        .fillMaxHeight()
                         .background(T.Surface, RoundedCornerShape(28.dp))
                         .border(1.dp, T.Hairline, RoundedCornerShape(28.dp))
                         .padding(24.dp),
@@ -481,6 +496,8 @@ fun MajungIviScreen(
                     SignalRow("차도쪽 문(2열 좌)", trafficDoorOpen, okText = "열림 · 경고", pendingText = "닫힘", danger = true)
                     SignalRow("착좌", signals.isSeated(target), okText = "감지", pendingText = "비어 있음")
                     SignalRow("안전벨트", signals.isBuckled(target), okText = "체결", pendingText = "미체결")
+                    SignalRow("하향등 · 다음 회전", signals.lowBeamOn, okText = "야간" + (if (signals.nextTurnDistanceMeters != Int.MAX_VALUE) " · ${signals.nextTurnDistanceMeters}m" else ""), pendingText = "주간" + (if (signals.nextTurnDistanceMeters != Int.MAX_VALUE) " · ${signals.nextTurnDistanceMeters}m" else ""), neutral = true)
+                    if (trace.cabinNote != null) Text(trace.cabinNote, color = T.ActiveBlue, fontSize = 12.sp)
                     Text("속도 출처 ${signals.speedSource.name.lowercase()} · 이벤트 ${signals.eventCount}건 · ${signals.lastEventLog}", color = T.Muted, fontSize = 12.sp)
                 }
             }

@@ -132,6 +132,9 @@ class SignalDrivenPickupCoordinatorTest {
         h.fix(-12.0, 0f) // 간판 12m 앞, 차속 0 — 하지만 아직 D단
         assertEquals(PickupPhase.STEP2_APPROACHING, h.orchestrator.uiState.value.phase)
         assertFalse(h.published.last().second.stoppedInPark)
+        h.now += 4_000L   // 3초 주기 위치 재전송이 일어나도(차속 0, D단) 4단계로 넘어가면 안 된다
+        h.fix(-12.0, 0f)
+        assertEquals(PickupPhase.STEP2_APPROACHING, h.orchestrator.uiState.value.phase)
 
         h.signal { onGearChanged(GearPosition.P) } // P단 → 정차 확정
         val s = h.orchestrator.uiState.value
@@ -182,7 +185,7 @@ class SignalDrivenPickupCoordinatorTest {
     fun doorSeatBeltSequenceGreetsThenAutoShredsSession() = runTest {
         val h = Harness()
         h.start()
-        h.signal { onGearChanged(GearPosition.P) }
+        h.signal { onGearChanged(GearPosition.P); onLowBeamChanged(true) } // 저녁 픽업: 하향등 ON
         h.coordinator.requestSurroundingsCheckedUnlock(h.hub.state.value)
         val z = SeatZone.ROW_1_RIGHT
 
@@ -213,6 +216,59 @@ class SignalDrivenPickupCoordinatorTest {
         h.spoken.clear()
         h.signal { onGearChanged(GearPosition.D) }
         assertTrue(h.spoken.any { it.contains("도어가 아직 열려") })
+    }
+
+    @Test
+    fun approachPreconditionsCabinForChildCarSeatAndCompletionRestoresIt() = runTest {
+        val h = Harness()
+        h.coordinator.inputs = PickupInputs("KMH999", "아이오닉 9", "4568", PassengerWelcomeProfile("지수", "CHILD", "ROW_1_RIGHT", hasChildCarSeat = true))
+        h.start()
+        val z = SeatZone.ROW_1_RIGHT
+        assertEquals(2, h.hw.readHvacFanSpeed(z))
+        assertEquals(1, h.hw.readSeatHeaterLevel(z))
+
+        h.signal { onGearChanged(GearPosition.D) }
+        h.fix(70.0, 20f, PleosTurnSignalState.RIGHT) // 접근 감지 → 사전 공조
+        assertEquals(3, h.hw.readHvacFanSpeed(z))      // 풍량 3 (ROW_1_RIGHT 범위 1..5)
+        assertEquals(0, h.hw.readSeatHeaterLevel(z))   // 유아 카시트 → 열선 0 고정
+        assertTrue(h.coordinator.trace.value.cabinNote!!.contains("카시트"))
+
+        h.signal { onGearChanged(GearPosition.P) }
+        h.coordinator.requestSurroundingsCheckedUnlock(h.hub.state.value)
+        h.coordinator.manualCompleteAndShred()
+        assertEquals(2, h.hw.readHvacFanSpeed(z))      // 세션 전 상태로 원복
+        assertEquals(1, h.hw.readSeatHeaterLevel(z))
+    }
+
+    @Test
+    fun readingLightOnlyWhenLowBeamIsOn() = runTest {
+        val h = Harness()
+        h.start()
+        h.signal { onGearChanged(GearPosition.P); onLowBeamChanged(false) }
+        h.coordinator.requestSurroundingsCheckedUnlock(h.hub.state.value)
+        h.signal { onDoorStateChanged(SeatZone.ROW_1_RIGHT, true, h.now) }
+        assertFalse(h.light) // 주간 → 독서등 생략
+
+        val n = Harness()
+        n.start()
+        n.signal { onGearChanged(GearPosition.P); onLowBeamChanged(true) }
+        n.coordinator.requestSurroundingsCheckedUnlock(n.hub.state.value)
+        n.signal { onDoorStateChanged(SeatZone.ROW_1_RIGHT, true, n.now) }
+        assertTrue(n.light) // 야간 → 독서등 점등
+    }
+
+    @Test
+    fun approachPromptIsHeldWhileTurnIsImminentAndBraking() = runTest {
+        val h = Harness()
+        h.start()
+        h.signal { onGearChanged(GearPosition.D); onNextTurnDistanceChanged(100); onBrakePedalChanged(true) }
+        h.fix(70.0, 20f, PleosTurnSignalState.RIGHT) // 접근 감지되지만 DLI(제동 0.30 + TBT 0.35) ≥ 0.45 → 보류
+        assertEquals(PickupPhase.STEP2_APPROACHING, h.orchestrator.uiState.value.phase)
+        assertFalse(h.spoken.any { it.contains("접근 중") })
+
+        h.signal { onNextTurnDistanceChanged(Int.MAX_VALUE); onBrakePedalChanged(false) } // 회전 종료·제동 해제
+        h.signal(2_000L) { onSpeedChanged(20f) }                                          // 1.5초 안정 후 재생
+        assertTrue(h.spoken.any { it.contains("접근 중") })
     }
 
     @Test

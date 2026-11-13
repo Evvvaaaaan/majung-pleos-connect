@@ -204,6 +204,10 @@
         renderCandidates(s.candidateSignboards, currentLandmark);
       }
 
+      // 테스트·시연 합성용 훅: 중계 서버 없이도 상태를 직접 주입할 수 있다 (운영 동작에는 영향 없음)
+      window.__majungApplyState = applyState;
+      window.__majungShowShredded = showShredded;
+
       btnReady.addEventListener("click", () => {
         btnReady.textContent = "운전자 화면에 전달했어요";
         btnReady.disabled = true;

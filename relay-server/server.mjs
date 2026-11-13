@@ -137,6 +137,21 @@ export function createMajungRelayServer() {
       return;
     }
 
+    // 0) 로컬 시연·테스트 보조: 가장 최근 세션 id (루프백 요청에서만 응답, 토큰은 노출하지 않음)
+    if (req.method === "GET" && url.pathname === "/api/v1/sessions/_latest") {
+      const remote = req.socket.remoteAddress || "";
+      const isLoopback = remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1";
+      const latest = [...ephemeralSessions.keys()].pop();
+      if (!isLoopback || !latest) {
+        res.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "NOT_FOUND" }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ sessionId: latest }));
+      return;
+    }
+
     // 1) 무설치 동승자 안심 웹 서빙 (/, /m/:sessionId)
     if (req.method === "GET" && (url.pathname === "/" || url.pathname.startsWith("/m/"))) {
       const html = fs.existsSync(WEB_HTML_PATH)

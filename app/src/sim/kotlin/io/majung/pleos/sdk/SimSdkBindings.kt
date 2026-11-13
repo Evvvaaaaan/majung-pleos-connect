@@ -1,7 +1,7 @@
 package io.majung.pleos.sdk
 
 import android.content.Context
-import android.speech.tts.TextToSpeech as AndroidTts
+import io.majung.pleos.audio.AndroidPlatformTtsAdapter
 import io.majung.pleos.audio.PleosTtsEngine
 import io.majung.pleos.finder.PleosTurnSignalState
 import io.majung.pleos.model.GearPosition
@@ -132,42 +132,6 @@ class SimNaviGateway : NaviRouteGateway {
     }
 }
 
-class SimAndroidTtsAdapter(context: Context) : PleosTtsEngine {
-    private var tts: AndroidTts? = null
-
-    init {
-        runCatching {
-            tts = AndroidTts(context.applicationContext) { status ->
-                if (status == AndroidTts.SUCCESS) {
-                    tts?.language = Locale.KOREAN
-                }
-            }
-        }
-    }
-
-    override fun initializeAndSetKoreanLocale(onReady: () -> Unit) {
-        onReady()
-    }
-
-    override fun speak(text: String, onCompleted: () -> Unit, onError: (String) -> Unit) {
-        runCatching {
-            tts?.speak(text, AndroidTts.QUEUE_ADD, null, "majung_sim_${System.nanoTime()}")
-            onCompleted()
-        }.onFailure { e ->
-            onError(e.message ?: "Android TTS unavailable")
-        }
-    }
-
-    override fun stop() {
-        runCatching { tts?.stop() }
-    }
-
-    override fun release() {
-        runCatching { tts?.shutdown() }
-        tts = null
-    }
-}
-
 /**
  * 학원가 픽업 시나리오(파리바게뜨 대치점 포켓, 37.498812/127.061420 기준)를 실제 신호 순서대로 재생한다.
  * 모든 이벤트는 LowLevelVehicleHardware 리스너를 통해 들어가므로 앱 로직은 pleos 플레이버와 완전히 동일한 경로를 탄다.
@@ -192,16 +156,20 @@ class SimDriveScenario(private val hw: SimVehicleHardware, private val onLog: (S
                 Triple(120, 30f, PleosTurnSignalState.OFF), Triple(70, 22f, PleosTurnSignalState.RIGHT), Triple(40, 14f, PleosTurnSignalState.RIGHT),
                 Triple(20, 7f, PleosTurnSignalState.RIGHT), Triple(12, 2f, PleosTurnSignalState.RIGHT)
             )
-            hw.emit { onGearChanged(GearPosition.D); onBrakePedalChanged(false) }
-            onLog("[SIM] 주행 시작 · 정차 지점 남쪽 300m")
+            // 저녁 학원가: 하향등 ON, 경로 안내 중(다음 회전 = 정차 포켓 진입 우회전)
+            hw.emit { onGearChanged(GearPosition.D); onBrakePedalChanged(false); onLowBeamChanged(true) }
+            onLog("[SIM] 주행 시작 · 정차 지점 남쪽 300m · 하향등 ON")
             for ((south, speed, turn) in steps) {
                 if (!running) return@thread
                 val lat = stopLat - south / 111_320.0
-                hw.emit { onSpeedChanged(speed); onTurnSignalChanged(turn); onBrakePedalChanged(speed < 25f) }
+                hw.emit {
+                    onSpeedChanged(speed); onTurnSignalChanged(turn); onBrakePedalChanged(speed < 25f)
+                    onNextTurnDistanceChanged(if (south > 20) south - 10 else Int.MAX_VALUE)
+                }
                 onFix(fix(lat, stopLng))
                 Thread.sleep(1_000)
             }
-            hw.emit { onSpeedChanged(0f); onBrakePedalChanged(true) }
+            hw.emit { onSpeedChanged(0f); onBrakePedalChanged(true); onNextTurnDistanceChanged(Int.MAX_VALUE) }
             onFix(fix(stopLat + 12 / 111_320.0, stopLng))
             Thread.sleep(600)
             hw.emit { onGearChanged(GearPosition.P) }
@@ -234,7 +202,7 @@ class SimDriveScenario(private val hw: SimVehicleHardware, private val onLog: (S
 class SimRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
     private val simHardware = SimVehicleHardware()
     private val simNavi = SimNaviGateway()
-    private val simTts = SimAndroidTtsAdapter(context)
+    private val simTts = AndroidPlatformTtsAdapter(context)
     private var scenarioLog: (String) -> Unit = {}
     private val scenario = SimDriveScenario(simHardware) { scenarioLog(it) }
     private var locationSink: ((VehicleLocationReading) -> Unit)? = null
