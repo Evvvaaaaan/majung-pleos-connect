@@ -261,7 +261,7 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None):
     ref = (
         bullet(f"**GitHub 저장소(소스·APK):** {GITHUB} — 2026.11.16~11.23 Public 유지. 최종 커밋 해시는 제출 이메일 본문에 기재.")
         + bullet("**릴리스 APK:** apk/ 폴더 — majung-v2-pleos-release.apk (Pleos Connect 에뮬레이터 v2.1.0 / API 34 대상, Vehicle 2.3.2), majung-v2-sim-release.apk (일반 AVD·AAOS 에뮬레이터 시연용). 두 APK 모두 debug 키 서명으로 바로 설치됩니다.")
-        + bullet("**시연 영상:** docs/demo/majung_demo.mp4 (이메일 첨부 동일 파일) — Android Automotive 에뮬레이터(2560×1440) 실제 앱 화면 녹화 + 동승자 웹 실시간 상태 재생, 약 1분 20초.")
+        + bullet("**시연 영상:** docs/demo/majung_demo.mp4 (이메일 첨부 동일 파일) — Android Automotive 에뮬레이터(2560×1440) 실제 앱 화면 녹화 + 동승자 웹 실시간 상태 재생 + 모션 그래픽 해설·내레이션, 1분 37초.")
         + bullet("**검증 방법(저장소에서 재현):** node relay-server/verify_e2e_sse.mjs · ./gradlew :app:testSimDebugUnitTest (15건) · ./scripts/verify_and_build_apk.sh")
     )
     if ivi_png and ivi_png.exists():

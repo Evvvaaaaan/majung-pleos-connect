@@ -14,7 +14,6 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { serve } from "./static_server.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, "..", "..");
@@ -65,11 +64,11 @@ fs.copyFileSync(path.join(repo, "web-companion", "index.html"), path.join(work, 
 fs.copyFileSync(path.join(here, "composition.html"), path.join(work, "composition.html"));
 
 // ---- 3) 정적 서버 + 프레임 캡처 --------------------------------------------------------------
+// 정적 서버는 캡처 프로세스 안에서 띄운다 (execFileSync 로 부모 이벤트 루프가 막히므로 부모가 서빙하면 안 됨)
 const port = Number(args.port || 8787);
-const server = await serve(work, port);
 const frames = path.join(work, "frames"); fs.rmSync(frames, { recursive: true, force: true });
-execFileSync("node", [path.join(here, "cdp_capture.mjs"), "--url", `http://127.0.0.1:${port}/composition.html`, "--out", frames, "--fps", String(fps), "--duration", String(total / 1000), "--width", "1920", "--height", "1080", "--port", String(Number(args.cdpPort || 9333))], { stdio: "inherit" });
-server.close();
+execFileSync("node", [path.join(here, "cdp_capture.mjs"), "--serve", work, "--servePort", String(port), "--url", `http://127.0.0.1:${port}/composition.html`,
+  "--out", frames, "--fps", String(fps), "--duration", String(total / 1000), "--width", "1920", "--height", "1080", "--port", String(Number(args.cdpPort || 9333))], { stdio: "inherit" });
 
 // ---- 4) 내레이션 믹스 + 인코딩 -----------------------------------------------------------------
 const nar = args.narration ? path.resolve(args.narration) : null;
