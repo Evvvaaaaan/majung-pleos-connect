@@ -1,0 +1,3 @@
+-keep class ai.pleos.playground.** { *; }
+-keep class io.majung.pleos.gleo.** { *; }
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod

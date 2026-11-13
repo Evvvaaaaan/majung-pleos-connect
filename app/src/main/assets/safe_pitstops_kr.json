@@ -1,0 +1,70 @@
+{
+  "version": "2026.11-v2",
+  "note": "데모 검증용 사전 큐레이션 승하차 후보 지점 데이터셋 (향후 공공 주정차 금지구역 API 연동 확장 예정)",
+  "pitstops": [
+    {
+      "id": "ps_gangnam_01",
+      "keywordAliases": [
+        "대치 학원가",
+        "한빛초교",
+        "파리바게뜨",
+        "수학학원"
+      ],
+      "rawPinInSchoolZone": true,
+      "landmarkSignboard": "파리바게뜨 대치점 노란 간판",
+      "candidateSignboards": [
+        "파리바게뜨 대치점 노란 간판",
+        "한빛약국 초록 십자 간판",
+        "이디야커피 파란 간판"
+      ],
+      "pitstopName": "한빛약국·파리바게뜨 앞 우측 포켓 정차 후보 지점",
+      "latitude": 37.498812,
+      "longitude": 127.061420,
+      "poiId": "pleos_poi_ps_001",
+      "address": "서울특별시 강남구 남부순환로 안심승하차 후보구역 1호",
+      "walkingMetersWithoutCrossing": 45
+    },
+    {
+      "id": "ps_station_02",
+      "keywordAliases": [
+        "판교역",
+        "지하철역",
+        "퇴근 마중",
+        "역 앞"
+      ],
+      "rawPinInSchoolZone": false,
+      "landmarkSignboard": "판교역 1번 출구 투썸플레이스 간판",
+      "candidateSignboards": [
+        "판교역 1번 출구 투썸플레이스 간판",
+        "올리브영 코너 간판",
+        "공영 택시·승용차 환승 포켓 표지판"
+      ],
+      "pitstopName": "판교역 1번 출구 우측 환승 포켓 후보 지점",
+      "latitude": 37.394776,
+      "longitude": 127.111160,
+      "poiId": "pleos_poi_ps_002",
+      "address": "경기도 성남시 분당구 판교역로 환승 포켓",
+      "walkingMetersWithoutCrossing": 30
+    },
+    {
+      "id": "ps_hospital_03",
+      "keywordAliases": [
+        "병원",
+        "안과",
+        "부모님 마중"
+      ],
+      "rawPinInSchoolZone": false,
+      "landmarkSignboard": "본관 1층 무장애 승하차장 B기둥",
+      "candidateSignboards": [
+        "본관 1층 무장애 승하차장 B기둥",
+        "본관 정문 약국 간판"
+      ],
+      "pitstopName": "본관 1층 무장애(Barrier-Free) 회차 승하차장 B구역",
+      "latitude": 37.562100,
+      "longitude": 126.940800,
+      "poiId": "pleos_poi_ps_003",
+      "address": "서울특별시 서대문구 연세로 무장애 승하차장",
+      "walkingMetersWithoutCrossing": 18
+    }
+  ]
+}

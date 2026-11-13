@@ -1,0 +1,11 @@
+{
+  "name": "majung-ephemeral-relay",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Zero-dependency SSE & ephemeral session relay server for MAJUNG Pleos Connect (20-min max TTL + immediate DELETE shred, zero passenger GPS collection)",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node verify_e2e_sse.mjs"
+  }
+}

@@ -1,0 +1,10 @@
+[공모전 제출용 APK 생성 및 배치 안내]
+
+1. Android Studio 실행 (JDK 17, Android SDK API 34 및 Pleos Connect System Image 설치 확인)
+2. 프로젝트 루트(majung-pleos-connect) 열기 후 Gradle Sync 완료
+3. 터미널에서 아래 명령어 실행 (또는 Android Studio > Build > Build APK(s)):
+   - macOS / Linux: ./scripts/verify_and_build_apk.sh
+   - Windows:       scripts\verify_and_build_apk.bat
+4. 생성된 APK 확인:
+   - apk/majung-v2-pleos-release.apk : Pleos Connect Emulator (API 34, Cold boot, RAM 4GB) 실연동 제출본
+   - apk/majung-v2-sim-release.apk   : 일반 Android Emulator 오프라인 시연 보조본

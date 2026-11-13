@@ -1,0 +1,77 @@
+{
+  "packageName": "io.majung.pleos",
+  "appDescription": "A curbside pickup coordination and boarding hospitality app for Pleos Connect that aligns driver and passenger on a shared landmark, verifies vehicle model and last-4 plate digits, assists boarding after driver surroundings check, and shreds session links immediately upon completion.",
+  "invokeWord": "마중",
+  "version": "2.0.0",
+  "actionCalls": [
+    {
+      "type": "function",
+      "function": {
+        "name": "START_SAFE_PICKUP",
+        "description": "Start a pickup session toward a candidate curbside pickup spot and issue a zero-install passenger web link.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "passengerName": {
+              "type": "string",
+              "description": "Display name of the family member or passenger being picked up."
+            },
+            "passengerProfile": {
+              "type": "string",
+              "description": "Passenger profile for comfort and car-seat safety rules.",
+              "enum": ["ADULT", "CHILD", "SENIOR"]
+            },
+            "destinationKeyword": {
+              "type": "string",
+              "description": "Pickup place or landmark spoken by the driver."
+            },
+            "hasCarSeat": {
+              "type": "boolean",
+              "description": "Whether a child car seat is installed on the target passenger seat."
+            }
+          },
+          "required": ["destinationKeyword"]
+        },
+        "component": "activity"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "SHARE_PICKUP_OFFSET",
+        "description": "Update and broadcast the stopped vehicle offset relative to the agreed signboard.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "manualOffsetPreset": {
+              "type": "string",
+              "description": "Driver-selected relative stop position.",
+              "enum": ["BEHIND_10M", "FRONT_0M", "AHEAD_12M"]
+            }
+          },
+          "required": ["manualOffsetPreset"]
+        },
+        "component": "service"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "COMPLETE_OR_CANCEL_PICKUP",
+        "description": "Confirm safe passenger boarding or cancel the pickup session, restoring windows/lights and immediately shredding the shared web token.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "commandType": {
+              "type": "string",
+              "description": "Lifecycle command for the pickup session.",
+              "enum": ["BOARDING_CONFIRMED", "CANCEL_SESSION"]
+            }
+          },
+          "required": ["commandType"]
+        },
+        "component": "service"
+      }
+    }
+  ]
+}

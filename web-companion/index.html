@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>마중 (MAJUNG) — 무설치 동승자 픽업 안내</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --surface: #f3f3f3;
+      --surface-hover: #f0f0f0;
+      --hairline: #e0e0e0;
+      --ink: #141414;
+      --muted: #707070;
+      --accent: #0066ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Noto Sans KR", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.5;
+      padding: 20px 16px 48px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+    .top-pill {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--surface);
+      border-radius: 9999px;
+      padding: 10px 16px;
+      margin-bottom: 16px;
+    }
+    .brand { font-weight: 700; font-size: 15px; letter-spacing: -0.02em; }
+    .badge {
+      background: var(--ink);
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 9999px;
+    }
+    .badge.active { background: var(--accent); }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 24px;
+      padding: 22px 20px;
+      margin-bottom: 14px;
+    }
+    .eyebrow {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .headline {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 10px;
+    }
+    .subtext {
+      font-size: 15px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .vehicle-box {
+      background: var(--bg);
+      border: 1px solid var(--hairline);
+      border-radius: 16px;
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .vehicle-model { font-size: 16px; font-weight: 600; }
+    .plate-pill {
+      background: var(--ink);
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      letter-spacing: 0.06em;
+    }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .chip {
+      background: var(--bg);
+      border: 1px solid var(--hairline);
+      border-radius: 9999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+    .btn {
+      width: 100%;
+      min-height: 48px;
+      border-radius: 9999px;
+      border: 1px solid var(--ink);
+      background: var(--ink);
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+    .btn-outline {
+      background: var(--bg);
+      color: var(--ink);
+      border: 1px solid var(--hairline);
+    }
+    .candidate-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .privacy-note {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 16px;
+    }
+    .shredded-banner {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 24px;
+      padding: 28px 20px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="top-pill">
+    <span class="brand">마중 Majung · 동승자 안심 웹</span>
+    <span id="phaseBadge" class="badge">연결 확인 중</span>
+  </div>
+
+  <div id="shreddedView" class="shredded-banner">
+    <p class="eyebrow">세션 즉시 파기 완료</p>
+    <h1 class="headline" style="margin-top:6px;">마중이 안전하게 종료되었습니다.</h1>
+    <p class="subtext" style="margin-bottom:0;">
+      탑승 확인(또는 운전자 종료·20분 만료)과 동시에 일회성 공유 토큰과 차량 위치 정보가 서버 메모리에서 즉시 삭제되었습니다.
+    </p>
+  </div>
+
+  <div id="activeView">
+    <div class="card">
+      <p id="sourceEyebrow" class="eyebrow">[SDK/SIM] 실시간 픽업 합의 화면</p>
+      <h1 id="landmarkTitle" class="headline">파리바게뜨 대치점 노란 간판</h1>
+      <p id="offsetGuide" class="subtext">
+        차량이 접근하면 간판 기준 정차 위치가 표시됩니다. 탑승 전 반드시 아래 차종과 번호판 끝 4자리를 먼저 확인해 주세요.
+      </p>
+
+      <div class="vehicle-box">
+        <div>
+          <div style="font-size:12px;color:#707070;">탑승할 차량 확인</div>
+          <div id="vehicleModel" class="vehicle-model">아이오닉 9</div>
+        </div>
+        <div id="plateNumber" class="plate-pill">4568</div>
+      </div>
+
+      <div class="meta-row">
+        <span id="reliabilityChip" class="chip">위치 신뢰도 확인 중</span>
+        <span id="doorStatusChip" class="chip">운전자 주변 확인 전</span>
+        <span class="chip">동승자 GPS 미수집</span>
+      </div>
+    </div>
+
+    <button id="btnReady" class="btn" type="button">
+      기준 간판 앞에 도착해 기다리고 있어요
+    </button>
+
+    <div class="card">
+      <p class="eyebrow">현장 정차가 여의치 않을 때 대체 후보 간판 제안</p>
+      <div id="candidateContainer" class="candidate-list"></div>
+    </div>
+
+    <p class="privacy-note">
+      본 무설치 웹은 동승자 스마트폰의 GPS 위치 권한을 요청하거나 수집하지 않습니다.<br />
+      공유 링크는 탑승 완료 즉시 파기되며, 미종료 시 최대 20분 후 자동 만료됩니다.
+    </p>
+  </div>
+
+  <script>
+    (function () {
+      const pathParts = window.location.pathname.split("/").filter(Boolean);
+      const sessionId = (pathParts[0] === "m" && pathParts[1]) ? pathParts[1] : (new URLSearchParams(window.location.search).get("s") || "demo-session");
+
+      const phaseBadge = document.getElementById("phaseBadge");
+      const sourceEyebrow = document.getElementById("sourceEyebrow");
+      const landmarkTitle = document.getElementById("landmarkTitle");
+      const offsetGuide = document.getElementById("offsetGuide");
+      const vehicleModel = document.getElementById("vehicleModel");
+      const plateNumber = document.getElementById("plateNumber");
+      const reliabilityChip = document.getElementById("reliabilityChip");
+      const doorStatusChip = document.getElementById("doorStatusChip");
+      const candidateContainer = document.getElementById("candidateContainer");
+      const activeView = document.getElementById("activeView");
+      const shreddedView = document.getElementById("shreddedView");
+      const btnReady = document.getElementById("btnReady");
+
+      function showShredded() {
+        activeView.style.display = "none";
+        shreddedView.style.display = "block";
+        phaseBadge.textContent = "공유 종료됨";
+        phaseBadge.classList.remove("active");
+      }
+
+      function renderCandidates(list, currentLandmark) {
+        candidateContainer.innerHTML = "";
+        const items = Array.isArray(list) && list.length ? list : [
+          "파리바게뜨 대치점 노란 간판",
+          "한빛약국 초록 십자 간판",
+          "이디야커피 파란 간판"
+        ];
+        items.forEach((cand) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "btn btn-outline";
+          b.style.marginBottom = "0";
+          b.textContent = cand === currentLandmark ? "현재 합의됨: " + cand : "'" + cand + "' 앞으로 변경 제안";
+          b.disabled = cand === currentLandmark;
+          b.onclick = () => {
+            fetch(`/api/v1/sessions/${encodeURIComponent(sessionId)}/swap-landmark`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ landmarkSignboard: cand })
+            }).catch(() => {});
+          };
+          candidateContainer.appendChild(b);
+        });
+      }
+
+      function applyState(s) {
+        if (!s) return;
+        sourceEyebrow.textContent = `${s.runtimeSourceBadge || "[실시간 연동]"} · 최대 20분 유효 (종료 즉시 파기)`;
+        if (s.landmarkSignboard) landmarkTitle.textContent = s.landmarkSignboard;
+        if (s.offsetGuideText) offsetGuide.textContent = s.offsetGuideText;
+        if (s.vehicleModelLabel) vehicleModel.textContent = s.vehicleModelLabel;
+        if (s.plateLast4) plateNumber.textContent = s.plateLast4;
+
+        const relMap = {
+          HIGH_CONFIDENCE_AUTO: "위치 신뢰 양호 · 자동 오프셋",
+          DRIVER_MANUAL_OVERRIDE: "운전자 직접 확인 오프셋",
+          LOW_CONFIDENCE_FALLBACK: "저신뢰 환경 · 차종·번호판 우선 확인"
+        };
+        reliabilityChip.textContent = relMap[s.locationReliability] || "기준 간판 안내";
+
+        if (s.welcomeGreetingActive) {
+          doorStatusChip.textContent = `${s.passengerName || "동승자"}님 환영 인사 중`;
+          phaseBadge.textContent = "승차 환대 중";
+          phaseBadge.classList.add("active");
+        } else if (s.boardingDoorUnlocked) {
+          doorStatusChip.textContent = "운전자 주변 확인 · 도어 잠금 해제됨";
+          phaseBadge.textContent = "승차 가능";
+          phaseBadge.classList.add("active");
+        } else {
+          doorStatusChip.textContent = "정차 및 주변 확인 대기";
+          phaseBadge.textContent = s.phase || "안내 중";
+        }
+
+        renderCandidates(s.candidateSignboards, s.landmarkSignboard);
+      }
+
+      btnReady.addEventListener("click", () => {
+        btnReady.textContent = "운전자 화면으로 대기 위치 전송 완료";
+        fetch(`/api/v1/sessions/${encodeURIComponent(sessionId)}/ready`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ statusText: `'${landmarkTitle.textContent}' 앞에서 대기 중입니다.` })
+        }).catch(() => {});
+      });
+
+      renderCandidates([], landmarkTitle.textContent);
+
+      try {
+        const es = new EventSource(`/api/v1/sessions/${encodeURIComponent(sessionId)}/events`);
+        es.addEventListener("STATE_UPDATE", (ev) => {
+          try { applyState(JSON.parse(ev.data)); } catch (_) {}
+        });
+        es.addEventListener("SESSION_SHREDDED", () => {
+          es.close();
+          showShredded();
+        });
+        es.onerror = () => {
+          fetch(`/api/v1/sessions/${encodeURIComponent(sessionId)}`)
+            .then((r) => { if (r.status === 404 && sessionId !== "demo-session") showShredded(); })
+            .catch(() => {});
+        };
+      } catch (_) {}
+    })();
+  </script>
+</body>
+</html>
