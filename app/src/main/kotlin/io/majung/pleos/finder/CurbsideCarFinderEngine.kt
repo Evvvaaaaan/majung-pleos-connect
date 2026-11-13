@@ -58,6 +58,15 @@ class CurbsideCarFinderEngine {
         return false to "접근 조건 대기 중 (일반 교차로 우회전 오작동 차단)"
     }
 
+    /** 두 좌표 간 직선 거리(m). 접근 감지(반경 80m/50m) 및 정차 판정(≤ 60m) 입력으로 사용 */
+    fun distanceMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Int {
+        val metersPerDegLat = 111_320.0
+        val metersPerDegLng = 111_320.0 * cos(Math.toRadians((lat1 + lat2) / 2.0))
+        val dN = (lat2 - lat1) * metersPerDegLat
+        val dE = (lng2 - lng1) * metersPerDegLng
+        return kotlin.math.sqrt(dN * dN + dE * dE).roundToInt()
+    }
+
     fun computeLongitudinalOffsetMeters(
         spotLat: Double,
         spotLng: Double,

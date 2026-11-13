@@ -3,6 +3,7 @@ package io.majung.pleos.runtime
 import io.majung.pleos.audio.PleosTtsEngine
 import io.majung.pleos.finder.PleosTurnSignalState
 import io.majung.pleos.orchestrator.NaviRouteGateway
+import io.majung.pleos.vehicle.BoardingActuator
 import io.majung.pleos.vehicle.LowLevelVehicleHardware
 
 data class VehicleLocationReading(
@@ -18,7 +19,7 @@ data class VehicleLocationReading(
  * MainActivity가 빌드 플레이버(pleos 실연동 vs sim 시뮬레이션)와 무관하게
  * 동일한 생명주기(initialize -> API 호출 -> release)로 호출하는 통합 런타임 브리지 계약
  */
-interface MajungRuntimeBridge {
+interface MajungRuntimeBridge : BoardingActuator {
     val runtimeBadgeLabel: String
     val usesRealPleosSdk: Boolean
 
@@ -49,27 +50,44 @@ interface MajungRuntimeBridge {
     fun queryLastKnownVehicleLocation(onResult: (VehicleLocationReading) -> Unit)
 
     /**
+     * 차량 FusedLocation 연속 수신 시작/중지:
+     * FusedLocation.registerFusedLocationCallback(FusedLocationListener) / unregisterFusedLocationCallback
+     * - 접근 감지(반경·감속·방향지시등 복합 조건)와 P단 정차 후 간판 오프셋 산출의 입력이 된다.
+     */
+    fun startLocationUpdates(onFix: (VehicleLocationReading) -> Unit)
+    fun stopLocationUpdates()
+
+    /**
      * 방향지시등 현재 상태 조회: Vehicle.getTurnSignal().getCurrentTurnSignalState(...)
      */
     fun queryTurnSignalState(onResult: (PleosTurnSignalState, String) -> Unit)
 
     /**
+     * [sim 플레이버 전용] 실차·Pleos 에뮬레이터 없이도 6단계를 재현하는 시나리오 재생기.
+     * pleos 플레이버는 false/no-op (실제 SDK 콜백만 사용).
+     */
+    val supportsSimulatedScenario: Boolean get() = false
+    fun playSimulatedApproachAndStop(onLog: (String) -> Unit = {}) {}
+    fun playSimulatedPassengerBoarding(onLog: (String) -> Unit = {}) {}
+    fun playSimulatedTrafficSideDoorMistake(onLog: (String) -> Unit = {}) {}
+
+    /**
      * P단 정차 & 운전자 주변 확인 후 동승석 도어 잠금/해제 제어:
      * Vehicle.getDoor().setDoorLock(DoorArea(ROW_1_RIGHT), value = false [언락] / true [잠금])
      */
-    fun setPassengerDoorUnlocked(unlocked: Boolean, onResult: (Boolean, String) -> Unit)
+    override fun setPassengerDoorUnlocked(unlocked: Boolean, onResult: (Boolean, String) -> Unit)
 
     /**
      * 조수석 창문 개방률 제어 (예: 25% 아이컨택 개방 / 탑승 완료 시 0% 원복):
      * Vehicle.getWindow().setWindowPosition(WindowArea(ROW_1_RIGHT), targetPercent)
      */
-    fun setFrontPassengerWindowPercent(targetPercent: Int, onResult: (Int, String) -> Unit)
+    override fun setFrontPassengerWindowPercent(targetPercent: Int, onResult: (Int, String) -> Unit)
 
     /**
      * 승차 도어 개방 시 독서등 제어:
-     * Vehicle.getLight().setReadingLightSwitch(...) / 시뮬레이션 대응
+     * Vehicle.getLight().setReadingLightSwitch(SeatArea(ROW_1_RIGHT), ...) / 시뮬레이션 대응
      */
-    fun setPassengerReadingLight(enabled: Boolean, onResult: (Boolean, String) -> Unit)
+    override fun setPassengerReadingLight(enabled: Boolean, onResult: (Boolean, String) -> Unit)
 
     /**
      * 동승석 착좌 여부 조회:

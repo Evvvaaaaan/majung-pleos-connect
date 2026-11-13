@@ -25,14 +25,19 @@ function sanitizeIncomingPayload(rawPayload) {
   if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) return {};
   const safeFields = {};
   const strings = ["passengerName", "pitstopName", "landmarkSignboard", "vehicleModelLabel",
-    "plateLast4", "offsetGuideText", "locationReliability", "runtimeSourceBadge", "phase"];
-  const numbers = ["walkingMetersWithoutCrossing", "remainingSeconds", "issuedAtEpochMs"];
-  const booleans = ["boardingDoorUnlocked", "welcomeGreetingActive"];
+    "plateLast4", "offsetGuideText", "locationReliability", "runtimeSourceBadge", "phase", "gear", "signalSource"];
+  const numbers = ["walkingMetersWithoutCrossing", "remainingSeconds", "issuedAtEpochMs", "speedBucketKmh"];
+  // 차량 신호 요약(VehicleFacts). 차량의 원시 좌표는 받지 않고, 버킷화된 거리(10m 단위)만 통과시킨다.
+  const booleans = ["boardingDoorUnlocked", "welcomeGreetingActive",
+    "stoppedInPark", "trafficSideDoorOpen", "passengerDoorOpen", "passengerSeated", "passengerBuckled"];
   for (const key of strings) if (typeof rawPayload[key] === "string") safeFields[key] = rawPayload[key];
   for (const key of numbers) if (typeof rawPayload[key] === "number" && Number.isFinite(rawPayload[key])) safeFields[key] = rawPayload[key];
   for (const key of booleans) if (typeof rawPayload[key] === "boolean") safeFields[key] = rawPayload[key];
   if (rawPayload.offsetMeters === null || (typeof rawPayload.offsetMeters === "number" && Number.isFinite(rawPayload.offsetMeters))) {
     safeFields.offsetMeters = rawPayload.offsetMeters;
+  }
+  if (rawPayload.distanceBucketMeters === null || (typeof rawPayload.distanceBucketMeters === "number" && Number.isFinite(rawPayload.distanceBucketMeters))) {
+    safeFields.distanceBucketMeters = rawPayload.distanceBucketMeters;
   }
   if (Array.isArray(rawPayload.candidateSignboards)) {
     safeFields.candidateSignboards = rawPayload.candidateSignboards.filter((value) => typeof value === "string");

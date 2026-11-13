@@ -4,6 +4,7 @@ import android.content.Context
 import android.speech.tts.TextToSpeech as AndroidTts
 import io.majung.pleos.audio.PleosTtsEngine
 import io.majung.pleos.finder.PleosTurnSignalState
+import io.majung.pleos.model.GearPosition
 import io.majung.pleos.model.IntBounds
 import io.majung.pleos.model.SeatZone
 import io.majung.pleos.model.VehicleCapabilityMatrix
@@ -14,6 +15,8 @@ import io.majung.pleos.runtime.VehicleLocationReading
 import io.majung.pleos.vehicle.LowLevelVehicleHardware
 import io.majung.pleos.vehicle.VehicleTelemetryListener
 import java.util.Locale
+import java.util.concurrent.CopyOnWriteArraySet
+import kotlin.concurrent.thread
 
 /**
  * [sim Flavor 전용] 외부 Pleos Maven 접근 권한이나 실차 없이도 일반 Android Studio 에뮬레이터/유닛 테스트에서
@@ -28,7 +31,10 @@ class SimVehicleHardware(
     private val hvacTemps = mutableMapOf(SeatZone.ROW_1_LEFT to 22.5f)
     private val ambientColors = mutableMapOf(SeatZone.ROW_1_LEFT to 0xFFFFFFFF.toInt())
     private var recircOn: Boolean = true
-    private val listeners = mutableSetOf<VehicleTelemetryListener>()
+    private val listeners = CopyOnWriteArraySet<VehicleTelemetryListener>()
+
+    /** 테스트·시나리오 재생기가 가상 차량 신호를 주입하는 지점 */
+    fun emit(block: VehicleTelemetryListener.() -> Unit) = listeners.forEach { it.block() }
 
     override suspend fun initialize(): Boolean = true
 
@@ -145,7 +151,7 @@ class SimAndroidTtsAdapter(context: Context) : PleosTtsEngine {
 
     override fun speak(text: String, onCompleted: () -> Unit, onError: (String) -> Unit) {
         runCatching {
-            tts?.speak(text, AndroidTts.QUEUE_FLUSH, null, "majung_sim_utt")
+            tts?.speak(text, AndroidTts.QUEUE_ADD, null, "majung_sim_${System.nanoTime()}")
             onCompleted()
         }.onFailure { e ->
             onError(e.message ?: "Android TTS unavailable")
@@ -162,10 +168,76 @@ class SimAndroidTtsAdapter(context: Context) : PleosTtsEngine {
     }
 }
 
+/**
+ * 학원가 픽업 시나리오(파리바게뜨 대치점 포켓, 37.498812/127.061420 기준)를 실제 신호 순서대로 재생한다.
+ * 모든 이벤트는 LowLevelVehicleHardware 리스너를 통해 들어가므로 앱 로직은 pleos 플레이버와 완전히 동일한 경로를 탄다.
+ */
+class SimDriveScenario(private val hw: SimVehicleHardware, private val onLog: (String) -> Unit) {
+    private val stopLat = 37.498812
+    private val stopLng = 127.061420
+    @Volatile private var running = false
+
+    private fun fix(lat: Double, lng: Double, heading: Double = 0.0, conf: Double = 0.88) = VehicleLocationReading(
+        supported = true, latitude = lat, longitude = lng, headingDeg = heading, confidence = conf,
+        rawSummary = "[SIM] FusedLocation(${String.format(Locale.US, "%.5f", lat)}, ${String.format(Locale.US, "%.5f", lng)}, conf=${String.format(Locale.US, "%.2f", conf)})"
+    )
+
+    /** 남쪽 300m에서 북상 → 70m에서 우측 방향지시등 → 감속 → 간판 12m 앞 P단 정차 */
+    fun playApproachAndStop(onFix: (VehicleLocationReading) -> Unit) {
+        if (running) return
+        running = true
+        thread(name = "majung-sim-drive") {
+            val steps = listOf(
+                Triple(300, 42f, PleosTurnSignalState.OFF), Triple(240, 40f, PleosTurnSignalState.OFF), Triple(180, 36f, PleosTurnSignalState.OFF),
+                Triple(120, 30f, PleosTurnSignalState.OFF), Triple(70, 22f, PleosTurnSignalState.RIGHT), Triple(40, 14f, PleosTurnSignalState.RIGHT),
+                Triple(20, 7f, PleosTurnSignalState.RIGHT), Triple(12, 2f, PleosTurnSignalState.RIGHT)
+            )
+            hw.emit { onGearChanged(GearPosition.D); onBrakePedalChanged(false) }
+            onLog("[SIM] 주행 시작 · 정차 지점 남쪽 300m")
+            for ((south, speed, turn) in steps) {
+                if (!running) return@thread
+                val lat = stopLat - south / 111_320.0
+                hw.emit { onSpeedChanged(speed); onTurnSignalChanged(turn); onBrakePedalChanged(speed < 25f) }
+                onFix(fix(lat, stopLng))
+                Thread.sleep(1_000)
+            }
+            hw.emit { onSpeedChanged(0f); onBrakePedalChanged(true) }
+            onFix(fix(stopLat + 12 / 111_320.0, stopLng))
+            Thread.sleep(600)
+            hw.emit { onGearChanged(GearPosition.P) }
+            onLog("[SIM] 간판 +12m 지점 P단 정차")
+            running = false
+        }
+    }
+
+    /** 운전자 승차 맞이 후: 조수석 문 열림 → 착좌 → 문 닫힘 → 벨트 체결 */
+    fun playPassengerBoarding() {
+        thread(name = "majung-sim-boarding") {
+            val z = SeatZone.ROW_1_RIGHT
+            Thread.sleep(800); hw.emit { onDoorStateChanged(z, true, System.currentTimeMillis()) }; onLog("[SIM] 조수석 문 열림")
+            Thread.sleep(2_200); hw.emit { onSeatOccupancyChanged(z, true) }; onLog("[SIM] 조수석 착좌")
+            Thread.sleep(2_200); hw.emit { onDoorStateChanged(z, false, System.currentTimeMillis()) }; onLog("[SIM] 조수석 문 닫힘")
+            Thread.sleep(1_500); hw.emit { onSeatBeltChanged(z, true, System.currentTimeMillis()) }; onLog("[SIM] 안전벨트 체결")
+        }
+    }
+
+    /** 오안내·안전 데모: 뒷좌석 차도 쪽 문이 먼저 열리는 경우 */
+    fun playTrafficSideDoorMistake() {
+        thread(name = "majung-sim-wrongdoor") {
+            hw.emit { onDoorStateChanged(SeatZone.ROW_2_LEFT, true, System.currentTimeMillis()) }
+            Thread.sleep(2_500)
+            hw.emit { onDoorStateChanged(SeatZone.ROW_2_LEFT, false, System.currentTimeMillis()) }
+        }
+    }
+}
+
 class SimRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
     private val simHardware = SimVehicleHardware()
     private val simNavi = SimNaviGateway()
     private val simTts = SimAndroidTtsAdapter(context)
+    private var scenarioLog: (String) -> Unit = {}
+    private val scenario = SimDriveScenario(simHardware) { scenarioLog(it) }
+    private var locationSink: ((VehicleLocationReading) -> Unit)? = null
 
     private var simDoorLeftPos = 0
     private var simDoorUnlocked = false
@@ -192,27 +264,47 @@ class SimRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
     }
 
     override fun queryLastKnownVehicleLocation(onResult: (VehicleLocationReading) -> Unit) {
-        // 기본 한빛약국·파리바게뜨 후보 지점(37.498812, 127.061420) 대비 약 +12m 전방 정차 시뮬레이션 좌표
         onResult(
             VehicleLocationReading(
-                supported = true,
-                latitude = 37.498920,
-                longitude = 127.061420,
-                headingDeg = 0.0,
-                confidence = 0.88,
+                supported = true, latitude = 37.498920, longitude = 127.061420, headingDeg = 0.0, confidence = 0.88,
                 rawSummary = "[SIM] FusedLocation(37.49892, 127.06142, conf=0.88)"
             )
         )
     }
 
+    override fun startLocationUpdates(onFix: (VehicleLocationReading) -> Unit) {
+        locationSink = onFix
+    }
+
+    override fun stopLocationUpdates() {
+        locationSink = null
+    }
+
+    override val supportsSimulatedScenario: Boolean = true
+
+    override fun playSimulatedApproachAndStop(onLog: (String) -> Unit) {
+        scenarioLog = onLog
+        scenario.playApproachAndStop { fix -> locationSink?.invoke(fix) }
+    }
+
+    override fun playSimulatedPassengerBoarding(onLog: (String) -> Unit) {
+        scenarioLog = onLog
+        scenario.playPassengerBoarding()
+    }
+
+    override fun playSimulatedTrafficSideDoorMistake(onLog: (String) -> Unit) {
+        scenarioLog = onLog
+        onLog("[SIM] 뒷좌석 차도 쪽(ROW_2_LEFT) 문 열림 주입")
+        scenario.playTrafficSideDoorMistake()
+    }
+
     override fun queryTurnSignalState(onResult: (PleosTurnSignalState, String) -> Unit) {
-        onResult(PleosTurnSignalState.RIGHT, "[SIM] TurnSignal -> RIGHT (반경 80m 이내 감속 복합 조건 시뮬레이션)")
+        onResult(PleosTurnSignalState.RIGHT, "[SIM] TurnSignal -> RIGHT")
     }
 
     override fun setPassengerDoorUnlocked(unlocked: Boolean, onResult: (Boolean, String) -> Unit) {
         simDoorUnlocked = unlocked
-        val rawLockValue = !unlocked
-        onResult(simDoorUnlocked, "[SIM] setDoorLock(ROW_1_RIGHT, value=$rawLockValue) -> unlocked=$simDoorUnlocked")
+        onResult(simDoorUnlocked, "[SIM] setDoorLock(ROW_1_RIGHT, value=${!unlocked}) -> unlocked=$simDoorUnlocked")
     }
 
     override fun setFrontPassengerWindowPercent(targetPercent: Int, onResult: (Int, String) -> Unit) {
@@ -222,7 +314,7 @@ class SimRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
 
     override fun setPassengerReadingLight(enabled: Boolean, onResult: (Boolean, String) -> Unit) {
         simReadingLightOn = enabled
-        onResult(simReadingLightOn, "[SIM] setCabinLightSwitch(${if (enabled) "ON" else "OFF"}) 완료")
+        onResult(simReadingLightOn, "[SIM] setReadingLightSwitch(ROW_1_RIGHT, ${if (enabled) "ON" else "OFF"}) 완료")
     }
 
     override fun queryPassengerSeatOccupancy(useRearRight: Boolean, onResult: (Boolean?, String) -> Unit) {
@@ -231,6 +323,7 @@ class SimRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
     }
 
     override fun release() {
+        locationSink = null
         simTts.release()
         simHardware.release()
     }

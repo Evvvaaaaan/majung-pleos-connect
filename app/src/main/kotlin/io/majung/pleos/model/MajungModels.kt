@@ -138,6 +138,27 @@ data class PickupSessionShareTicket(
     }
 }
 
+/**
+ * "폰은 모르고 차만 아는 사실" — 동승자 웹과 IVI 양쪽에 그대로 전달되는 차량 신호 요약.
+ * 스마트폰 위치 공유로는 알 수 없는 3가지(P단 정차 여부 · 어느 문이 열렸는지 · 안전벨트 체결 여부)가 핵심이다.
+ */
+data class VehicleFacts(
+    val stoppedInPark: Boolean = false,        // 기어 P + 차속 ≤ 1 km/h: 이때만 "지금 타도 돼요"
+    val trafficSideDoorOpen: Boolean = false,  // 차도 쪽(뒷좌석 좌측) 문 열림 → 즉시 경고
+    val passengerDoorOpen: Boolean = false,    // 승차 좌석 문 열림
+    val passengerSeated: Boolean = false,      // 승차 좌석 착좌 감지
+    val passengerBuckled: Boolean = false,     // 승차 좌석 안전벨트 체결 → 공유 자동 종료 조건
+    val gear: GearPosition = GearPosition.P,
+    val speedBucketKmh: Int = 0,               // 5 km/h 단위 (웹 갱신 폭주 방지)
+    val distanceBucketMeters: Int? = null,     // 10 m 단위
+    val signalSource: String = ""              // "[SDK 실연동]" / "[SIM 시뮬레이션]"
+) {
+    companion object {
+        fun bucketSpeed(speedKmh: Float): Int = ((speedKmh / 5f).toInt()) * 5
+        fun bucketDistance(meters: Int?): Int? = meters?.let { (it / 10) * 10 }
+    }
+}
+
 data class CabinActuatorSnapshot(
     val hvacFanSpeedByZone: Map<SeatZone, Int>,
     val hvacRecirculationOn: Boolean?,

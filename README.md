@@ -1,89 +1,119 @@
-# 마중 (MAJUNG) — Pleos Connect 차량-동승자 픽업 정합성 및 탑승 환대 앱
+# 마중 (MAJUNG) — 폰은 모르고 차만 아는 3가지로 끝내는 안심 픽업
 
-> **블라인드 심사 준수 안내**: 본 저장소(`README.md`, 소스 코드, 리소스, 매니페스트)에는 참가자의 성명·소속·연락처 등 개인 식별 정보를 포함하지 않습니다.
+> 블라인드 심사 준수: 이 저장소에는 참가자의 성명·소속·연락처가 없습니다.
 
-혼잡한 학원가나 역 앞에서 운전자와 동승자가 **같은 기준 간판을 합의하고, 차종과 번호판 끝 4자리로 내 차를 확인하며, 운전자의 주변 확인 후 안전하게 승차하고 즉시 위치 공유를 종료**하도록 돕는 **현대자동차그룹 Pleos Connect AAOS 네이티브 차량용 앱**입니다.
+학원가·역 앞에서 "어디야? 무슨 간판 앞이야?"를 반복하는 마지막 100m를 **차량 신호**로 끝냅니다.
+스마트폰 위치 공유가 할 수 없는 세 가지를 **Pleos Connect 차량용 앱**이 대신합니다.
 
----
+| 폰은 모른다 | 차는 안다 (Vehicle SDK 신호) | 마중이 하는 일 |
+| :-- | :-- | :-- |
+| 차가 정말 멈췄는지 | `Gear = PARK` + 차속 0 | 그때서야 동승자 웹이 **"지금 타도 돼요"** 로 바뀐다 |
+| 아이가 어느 문을 열었는지 | `DoorPosition(ROW_2_LEFT)` 열림 | 차도 쪽 문이면 **즉시 실내 음성 경고** |
+| 안전벨트를 맸는지 | `SeatBeltBuckled` + 문 닫힘 | 공유 링크를 **자동 파기**하고 창문·조명 원복 |
 
-## 1. 공식 Pleos Connect 시작 가이드 준수 현황
-
-공식 문서([Pleos Connect 앱 개발 시작하기](https://document.pleos.ai/docs/pleos-only/getting-started))의 Step 1~6 요구사항을 프로젝트 전반에 그대로 반영했습니다.
-
-| 단계 | 공식 가이드 요구사항 | 구현 파일 및 검증 포인트 |
-| :--- | :--- | :--- |
-| **사전 준비 & Step 1** | Android SDK `API 34`, Kotlin, `minSdk = 28` 이상 Automotive Activity | `app/build.gradle.kts` (`compileSdk = 34`, `minSdk = 28`, `targetSdk = 34`) |
-| **Step 2** | Pleos Connect Emulator (`API 34`, `Cold boot`, `RAM 4 GB`) | `pleos` 빌드 플레이버 기본 타깃 (오프라인 재현용 `sim` 플레이버 병행 제공) |
-| **Step 3** | `settings.gradle.kts`에 `https://nexus-playground.pleos.ai/repository/maven-releases/` 등록 및 `Vehicle:2.3.1` 의존성 선언 | `settings.gradle.kts`, `gradle/libs.versions.toml` (`Vehicle:2.3.1`, `NaviHelper:3.0.5`, `FusedLocation:1.1.2`, `TextToSpeech:3.3.1`, `SpeechToText:3.3.1`) |
-| **Step 4** | `AndroidManifest.xml`에 `pleos.car.permission.CAR_DOORS` 등 공개 차량 권한 선언 | `app/src/main/AndroidManifest.xml` (`PRIVATE_*` 비공개 권한 0건) |
-| **Step 5** | `Vehicle(context)` -> `vehicle.initialize()` -> `getDoor().getCurrentDoorPosition(DoorArea(DoorValue.ROW_1_LEFT), onComplete, onFailed)` 및 `onDestroy()`에서 `release()` 호출 | `MainActivity.kt` 진입 즉시 `runtimeBridge.queryStep5FrontLeftDoorPosition(...)` 실호출 및 `onDestroy()`에서 `runtimeBridge.release()` 해제 |
-| **Step 6** | 에뮬레이터 실행 시 도어 위치 조회 결과 및 실패 예외 화면 표출 | IVI 상단 헤더(`Step 5 Door(ROW_1_LEFT)`) 및 하단 실시간 SDK 콜백 로그 바 상시 표시 (`[SDK 실연동]` / `[SIM 시뮬레이션]` 출처 구분 배지 포함) |
+운전자가 직접 누르는 버튼은 **"주변 확인 완료 · 승차 맞이" 하나**뿐이며, 그것도 P단 정차가 아니면 거부됩니다.
+그 외 접근 알림·정차 확인·환대 인사·종료는 전부 차량 신호가 트리거합니다.
 
 ---
 
-## 2. 6단계 핵심 사용자 흐름 및 안전·개인정보 방어 설계
+## 1. 6단계 흐름과 트리거 신호
 
-1. **픽업 장소(기준 간판) 합의 및 일회성 링크 발급**: 내비게이션 목적지·경유지(`NaviHelper.requestRoute` / `requestRouteWithWaypoints`) 설정과 동시에 무설치 동승자 웹 링크를 생성합니다. 동승자 스마트폰의 원시 GPS 좌표는 수집·저장하지 않습니다(`collectPassengerGps: false`).
-2. **차량 접근 안내 (오작동 방어 복합 조건)**: 단순 방향지시등 점등만으로는 발송하지 않으며, `반경 80m 이내 + 시속 25km 이하 감속 + 우측 방향지시등(TurnSignal)` 복합 조건 또는 `반경 50m 이내 저속 진입 폴백` 충족 시에만 접근 알림을 전환합니다.
-3. **차종 및 번호판 끝 4자리 확인**: `CarInfo.getVINInfo()` 기반 차종 표기(미지원 시 운전자 입력 차종 폴백)와 운전자가 입력한 번호판 끝 4자리(`4568` 등)를 동승자 웹 최상단에 크게 표시합니다.
-4. **조건부 간판 기준 정차 위치 안내 및 수동 오버라이드**: `FusedLocation(1.1.2)`의 `isSupported()` 및 `confidence >= 0.70`이 확보될 때만 간판 대비 대략적인 정차 오프셋(`앞 +12m` 등)을 계산하며, 지하주차장·빌딩숲 등 저신뢰 환경에서는 미터 표기를 자동 생략하고 운전자가 IVI 화면에서 `[간판 뒤(-10m) / 정면(0m) / 앞(+12m)]` 프리셋으로 즉시 지정할 수 있습니다.
-5. **운전자 주변 확인 후 승차 맞이 및 착좌 환대(`"~~님, 반갑습니다."`)**: P단 정차 상태에서 운전자가 사이드미러로 후방 자전거·이륜차를 직접 확인한 뒤 `[주변확인 완료 · 승차맞이]`를 누르면 `Door.setDoorLock(ROW_1_RIGHT, value = false)`(잠금 해제)와 `Window.setWindowPosition(ROW_1_RIGHT, 25)`가 실행됩니다. 동승석 착좌(`Seat.getCurrentSeatOccupancy`)가 확인되면 센터 화면 환영 카드(`"지수님, 반갑습니다."`)와 함께 `Pleos TextToSpeech(Mode.ON_DEVICE, Locale.KOREAN)` 환영 음성이 재생됩니다.
-6. **탑승 확인 및 공유 즉시 종료**: 도어 닫힘·안전벨트 체결(또는 미지원 트림용 `[탑승확인 · 공유 즉시종료]` 수동 버튼) 시 창문(`0%`)·실내 조명을 원복하고, `DELETE /api/v1/sessions/:id`를 호출해 공유 토큰을 서버 메모리에서 **즉시 파기**합니다(미종료 방치 시에도 발급 후 **최대 20분** 경과 시 자동 만료 파기).
+| 단계 | 트리거 | 차량 → 동승자 웹 | 사용 API |
+| :-- | :-- | :-- | :-- |
+| 1 합의 | 운전자 "픽업 시작" (또는 Gleo 음성 `START_SAFE_PICKUP`) | 기준 간판·차종·번호판 끝 4자리·일회성 링크 | `NaviHelper.requestRoute(WithWaypoints)` |
+| 2 접근 | 반경 80m + ≤25km/h + 우측 방향지시등 (또는 50m 저속 폴백) | "차가 들어오고 있어요" + 남은 거리(10m 단위) | `FusedLocation.registerFusedLocationCallback`, `TurnSignal.register…`, AAOS `PERF_VEHICLE_SPEED` |
+| 3 식별 | — | 차종(VIN 앞 3자리 폴백) + 번호판 끝 4자리 상시 노출 | `CarInfo.getVINInfo` |
+| 4 정차 | **기어 P + 차속 0** + 60m 이내 | "차가 멈췄어요" + 간판 기준 앞/뒤 m (신뢰도 ≥0.70일 때만) | `Gear.registerGearSelection`, `FusedLocation` confidence |
+| 5 맞이 | 운전자 [주변 확인 완료] → 문 열림 → 착좌 | 도어 잠금 해제·창문 25%(우천 시 0%)·독서등·"○○님, 반갑습니다" | `Door.setDoorLock`, `Window.setWindowPosition`, `Light.setReadingLightSwitch`, `Seat.registerSeatOccupancy`, Pleos `TextToSpeech` |
+| 6 종료 | **문 닫힘 + 벨트 체결** (센서 미지원 트림은 수동 버튼) | 링크 즉시 파기(`DELETE`), 20분 TTL 백업 | `Seat.registerSeatBeltBuckledState`, `Door.registerDoorPosition` |
+
+안전 인터락 (항상 동작):
+- 뒷좌석 차도 쪽(`ROW_2_LEFT`) 문 열림 → CRITICAL 음성 경고, DLI 게이트 우회
+- 5단계 중 기어 D/R 전환 시 문 열림·벨트 미체결이면 출발 위험 경고
+- 조향 각속도·브레이크·와이퍼·속도로 계산한 운전 부하 지수(DLI) ≥ 0.45 이면 일반 안내 보류(1.5초 안정 후 재생)
+- 원격 도어 **개방**은 하지 않음. 잠금 해제만, P단 + 운전자 확인 후에만.
 
 ---
 
-## 3. 빠른 실행 방법 (3분 내 End-to-End 재현)
+## 2. 코드가 실제로 하는 것 (README 주장 ↔ 소스 대응)
 
-### 3-1. 무설치 동승자 웹 & 실시간 SSE 중계 서버 실행 (Node.js 18+)
+| 주장 | 파일 | 근거 |
+| :-- | :-- | :-- |
+| Vehicle SDK `register*` 콜백 13종 실제 등록 | `app/src/pleos/.../PleosRealSdkBindings.kt` `PleosLowLevelVehicleAdapter.registerTelemetryCallbacks` | gear·brake·steering·wiper(FRONT_WINDSHIELD)·turnSignal·door×4·seatOccupancy×3·seatBelt×3 + 초기값 `getCurrent*` 조회 |
+| 차속은 AAOS 표준 속성 | `app/src/main/.../vehicle/AaosSpeedSource.kt` | `CarPropertyManager.registerCallback(PERF_VEHICLE_SPEED, SENSOR_RATE_UI)`; 실패 시 FusedLocation 좌표 변화로 추정 |
+| 신호 → 상태 → 자동 전이 | `vehicle/VehicleSignalHub.kt` → `orchestrator/SignalDrivenPickupCoordinator.kt` | Hub가 StateFlow로 합치고, Coordinator가 edge-trigger로 6단계 전진 |
+| 동승자 웹이 받는 차량 사실 | `model/MajungModels.kt` `VehicleFacts`, `relay-server/server.mjs` sanitize 목록 | 차량 원시 좌표는 서버가 버리고 10m 버킷 거리만 통과 |
+| 능력 매트릭스 실제 조회 | `probeCapabilities()` | `checkSeatBeltBuckledCapabilities`, `checkSeatOccupancyCapabilities`, `checkDoorPositionCapabilities`, `checkDoorLockCapabilities`, `checkWindowPositionCapabilities` → 센서 없는 트림은 수동 종료 모드 |
+| 시뮬레이션은 같은 경로 | `app/src/sim/.../SimSdkBindings.kt` `SimDriveScenario` | 리스너 인터페이스에 신호를 주입할 뿐, 앱 로직은 pleos 플레이버와 동일 |
 
-외부 npm 패키지 설치 없이 표준 Node.js 내장 모듈만으로 즉시 동작합니다.
+**현재 범위에서 하지 않는 것**: 공조(HVAC)·앰비언트 제어, TBT(다음 안내 지점 거리) 연동, STT. 의존성에서도 제거했습니다.
+
+---
+
+## 3. 검증 (이 저장소에서 재현 가능)
 
 ```bash
-# 1) End-to-End 자동 검증 테스트 실행
-node relay-server/verify_e2e_sse.mjs
-
-# 2) 로컬 8080 포트로 중계 서버 기동 (에뮬레이터에서는 http://10.0.2.2:8080 으로 자동 연결됨)
-PORT=8080 node relay-server/server.mjs
+node relay-server/verify_e2e_sse.mjs          # 중계 서버 E2E: GPS 필드 차단 · VehicleFacts 통과 · SSE · DELETE 파기
+./gradlew :app:testSimDebugUnitTest           # 유닛 테스트 12건
+./scripts/verify_and_build_apk.sh             # 위 두 가지 + sim/pleos release APK 생성
 ```
 
-브라우저에서 `http://localhost:8080/m/demo-session` 접속 시 동승자 무설치 모바일 웹 화면을 바로 확인할 수 있습니다.
-
-### 3-2. Android Studio 및 Pleos Connect Emulator 빌드·실행
-
-1. **Android Studio (JDK 17, Android SDK API 34)** 에서 본 프로젝트 루트 폴더를 엽니다.
-2. **Build Variants** 탭에서 실행 환경에 맞는 플레이버를 선택합니다:
-   - `pleosDebug` / `pleosRelease`: **Pleos Connect Emulator (`API 34`, `Cold boot`, `RAM 4 GB`)** 실연동 모드 (`[SDK 실연동]` 배지 표시)
-   - `simDebug` / `simRelease`: 일반 Android Emulator 오프라인 검증 모드 (`[SIM 시뮬레이션]` 배지 표시)
-3. 터미널 원클릭 APK 생성:
-   ```bash
-   ./scripts/verify_and_build_apk.sh
-   ```
-   빌드 완료 시 `apk/majung-v2-pleos-release.apk` 및 `apk/majung-v2-sim-release.apk`로 자동 복사됩니다.
+유닛 테스트가 보장하는 것(`app/src/test/.../SignalDrivenPickupCoordinatorTest.kt`):
+- 멀리서 깜빡이만 켜면 접근 알림이 **안 나가고**, 80m·감속·우측 깜빡이가 모이면 나간다
+- 차속 0이어도 **D단이면 4단계로 안 넘어가고**, P단이 되면 넘어가며 웹에 `stoppedInPark=true`가 실린다
+- 주행 중 "승차 맞이"는 거부, P단에서는 잠금 해제 + 창문 25%, 우천 시 창문 0%
+- 차도 쪽 문 열림 → 즉시 경고 발화
+- 문 열림 → 독서등, 착좌 → 인사, 문 닫힘만으로는 종료 안 됨, **벨트 체결 → 자동 파기**
+- 문 열린 채 D단 → 출발 위험 경고
+- AAOS 차속이 없으면 FusedLocation 좌표로 36 km/h 추정
 
 ---
 
-## 4. 디렉터리 구조
+## 4. 실행
+
+### 4-1. 중계 서버 + 동승자 웹 (Node 18+, 의존성 없음)
+```bash
+PORT=8080 node relay-server/server.mjs
+# 에뮬레이터는 http://10.0.2.2:8080 으로 자동 연결, 브라우저는 http://localhost:8080/m/demo-session
+```
+
+### 4-2. Pleos Connect Emulator (API 34, Cold boot, RAM 4GB)
+1. Android Studio(JDK 17)에서 루트 폴더 열기 → Build Variants `pleosRelease`
+2. `apk/majung-v2-pleos-release.apk` 설치 → 앱 실행 시 `CAR_SPEED` 권한 허용
+3. Virtual Console(127.0.0.1:8088)로 기어·도어·착좌·벨트 신호를 주입하면 화면 우측 "차량 신호" 패널과 동승자 웹이 즉시 반응
+
+### 4-3. 일반 AVD (sim 플레이버)
+`apk/majung-v2-sim-release.apk` 설치 후 화면 하단 **시뮬레이션** 행:
+"주행 → 간판 앞 P단 정차" → "주변 확인 완료 · 승차 맞이" → "동승자 탑승(문·착좌·벨트)". 모두 리스너 주입이라 pleos와 같은 코드가 돈다.
+
+---
+
+## 5. 디자인
+
+- **차량 화면**: Pleos(ccNC) 다크 IVI 언어 — 검정 바탕, 한 화면 한 메시지(40sp 헤드라인), 현대 브랜드 블루 계열 포인트, 환대 순간만 Sand(#E4DCD3) 카드. 터치 타깃 ≥ 56dp, UX 제한 시 입력란 숨김. 토큰: `ui/MajungTheme.kt`
+- **동승자 웹**: 현대 브랜드 라이트 톤(Hyundai Blue #002C5F / Sand). 번호판 끝 4자리가 화면에서 가장 큰 요소. 상태 카드는 오직 차량 신호로만 바뀐다. `web-companion/index.html`
+- 로고·전용 서체 등 상표 자산은 사용하지 않았습니다.
+
+---
+
+## 6. 구조
 
 ```text
-majung-pleos-connect/
-├── settings.gradle.kts                 # Pleos 공식 Maven 저장소 등록
-├── gradle/libs.versions.toml           # Vehicle 2.3.1, NaviHelper 3.0.5, FusedLocation 1.1.2, TTS 3.3.1
-├── app/
-│   ├── build.gradle.kts                # API 34 / minSdk 28 / pleos & sim 투트랙 플레이버
-│   └── src/
-│       ├── main/
-│       │   ├── AndroidManifest.xml     # 공개 차량 권한 선언 및 Gleo 인텐트 필터
-│       │   ├── assets/                 # safe_pitstops_kr.json, Gleo schema.json
-│       │   └── kotlin/io/majung/pleos/ # MainActivity(실연동 바인딩), 6단계 오케스트레이터, 오안내 방어 엔진
-│       ├── pleos/kotlin/               # 공식 Pleos Connect SDK 실호출 어댑터 (PleosRuntimeBridgeImpl)
-│       ├── sim/kotlin/                 # 일반 에뮬레이터 재현용 시뮬레이션 어댑터 (SimRuntimeBridgeImpl)
-│       └── test/kotlin/                # 도메인·오케스트레이터 JUnit4 자동 검증 테스트
-├── relay-server/
-│   ├── server.mjs                      # 무의존성 실시간 SSE & 즉시 파기(최대 20분 TTL) 중계 서버
-│   └── verify_e2e_sse.mjs              # SSE·GPS 필터링·간판 변경·DELETE 파기 E2E 자동 검증
-├── web-companion/
-│   └── index.html                      # Mobbin 모노크롬 동승자 무설치 안심 웹
-└── scripts/
-    ├── verify_and_build_apk.sh         # macOS/Linux 원클릭 테스트·APK 빌드 스크립트
-    └── verify_and_build_apk.bat        # Windows 원클릭 테스트·APK 빌드 스크립트
+app/src/main/kotlin/io/majung/pleos/
+├── vehicle/VehicleSignalHub.kt          # SDK/AAOS/FusedLocation 콜백 → 단일 StateFlow (조향 각속도·추정 차속 계산)
+├── vehicle/AaosSpeedSource.kt           # CarPropertyManager PERF_VEHICLE_SPEED
+├── vehicle/PleosCapabilityGateway.kt    # 능력 매트릭스·도어/착좌/벨트 시퀀스 추론·출발 위험 판정
+├── orchestrator/SignalDrivenPickupCoordinator.kt   # 신호 edge → 6단계 자동 전진 (유일한 수동: 주변 확인)
+├── orchestrator/PickupEtaOrchestrator.kt           # 세션·티켓·VehicleFacts 발행·즉시 파기
+├── safety/DrivingLoadGate.kt            # 운전 부하 지수 게이트
+├── finder/CurbsideCarFinderEngine.kt    # 접근 복합 조건·간판 오프셋·거리
+├── welcome/WelcomeHospitalityEngine.kt  # 환대 단계 결정
+├── relay/EphemeralRelayClient.kt        # SSE/REST (OkHttp)
+└── ui/MainActivity.kt · MajungTheme.kt  # Compose IVI 화면
+app/src/pleos/…/PleosRealSdkBindings.kt  # Vehicle 2.3.2 · NaviHelper 3.0.5 · FusedLocation 1.1.3 · TTS 3.3.1
+app/src/sim/…/SimSdkBindings.kt          # 인메모리 구현 + 시나리오 재생기
+relay-server/server.mjs · verify_e2e_sse.mjs
+web-companion/index.html
 ```
+
+SDK 버전은 `nexus-playground.pleos.ai`에 실제 배포된 것(2026-11-13 maven-metadata 기준)만 사용합니다.

@@ -3,6 +3,7 @@ package io.majung.pleos.relay
 import io.majung.pleos.model.PickupPhase
 import io.majung.pleos.model.PickupSessionShareTicket
 import io.majung.pleos.model.SafePitstopStop
+import io.majung.pleos.model.VehicleFacts
 import io.majung.pleos.orchestrator.RelayNotificationGateway
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -40,7 +41,8 @@ class EphemeralRelayClient(
         remainingSeconds: Int,
         phase: PickupPhase,
         boardingDoorUnlocked: Boolean,
-        welcomeGreetingActive: Boolean
+        welcomeGreetingActive: Boolean,
+        facts: VehicleFacts
     ): Boolean = withContext(Dispatchers.IO) {
         runCatching {
             val candidatesJson = JSONArray().apply {
@@ -67,6 +69,16 @@ class EphemeralRelayClient(
                 put("phase", phase.name)
                 put("boardingDoorUnlocked", boardingDoorUnlocked)
                 put("welcomeGreetingActive", welcomeGreetingActive)
+                // 차만 아는 사실 — 동승자 웹의 큰 상태 카드가 이 값으로만 바뀐다
+                put("stoppedInPark", facts.stoppedInPark)
+                put("trafficSideDoorOpen", facts.trafficSideDoorOpen)
+                put("passengerDoorOpen", facts.passengerDoorOpen)
+                put("passengerSeated", facts.passengerSeated)
+                put("passengerBuckled", facts.passengerBuckled)
+                put("gear", facts.gear.name)
+                put("speedBucketKmh", facts.speedBucketKmh)
+                if (facts.distanceBucketMeters != null) put("distanceBucketMeters", facts.distanceBucketMeters) else put("distanceBucketMeters", JSONObject.NULL)
+                put("signalSource", facts.signalSource)
                 put("issuedAtEpochMs", ticket.issuedAtEpochMs)
                 put("maxExpiresAtEpochMs", ticket.maxExpiresAtEpochMs)
                 put("collectPassengerGps", false)

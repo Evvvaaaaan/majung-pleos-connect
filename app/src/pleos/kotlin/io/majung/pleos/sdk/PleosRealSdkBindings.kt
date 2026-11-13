@@ -17,10 +17,22 @@ import ai.pleos.playground.vehicle.api.model.area.SeatArea
 import ai.pleos.playground.vehicle.api.model.area.WindowArea
 import ai.pleos.playground.vehicle.constant.area.DoorValue
 import ai.pleos.playground.vehicle.constant.area.SeatValue
+import ai.pleos.playground.vehicle.constant.area.TurnSignalValue
 import ai.pleos.playground.vehicle.constant.area.WindowValue
 import ai.pleos.playground.vehicle.constant.control.LightSwitch
+import ai.pleos.playground.vehicle.constant.control.VehicleGear
+import ai.pleos.playground.vehicle.constant.control.WiperState
+import ai.pleos.playground.vehicle.listener.BrakePedalStatusListener
+import ai.pleos.playground.vehicle.listener.DoorPositionListener
+import ai.pleos.playground.vehicle.listener.GearSelectionListener
+import ai.pleos.playground.vehicle.listener.SeatBeltBuckledStateListener
+import ai.pleos.playground.vehicle.listener.SeatOccupancyListener
+import ai.pleos.playground.vehicle.listener.SteeringWheelAngleListener
+import ai.pleos.playground.vehicle.listener.TurnSignalStateListener
+import ai.pleos.playground.vehicle.listener.WiperStateListener
 import io.majung.pleos.audio.PleosTtsEngine
 import io.majung.pleos.finder.PleosTurnSignalState
+import io.majung.pleos.model.GearPosition
 import io.majung.pleos.model.IntBounds
 import io.majung.pleos.model.SeatZone
 import io.majung.pleos.model.VehicleCapabilityMatrix
@@ -31,13 +43,14 @@ import io.majung.pleos.runtime.VehicleLocationReading
 import io.majung.pleos.vehicle.LowLevelVehicleHardware
 import io.majung.pleos.vehicle.VehicleTelemetryListener
 import java.util.Locale
+import java.util.concurrent.CopyOnWriteArraySet
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * [pleos Flavor 전용] 공식 Pleos Connect SDK 실연동 구현체
- * - Getting Started Step 3~5 준수:
- *   Vehicle 2.3.1 / NaviHelper 3.0.5 / FusedLocation 1.1.2 / TextToSpeech 3.3.1 (Mode.ON_DEVICE)
+ * - Vehicle 2.3.2 / NaviHelper 3.0.5 / FusedLocation 1.1.3 / TextToSpeech 3.3.1 (Mode.ON_DEVICE)
+ *   (nexus-playground.pleos.ai maven-metadata 기준 실제 배포 버전)
  */
 class PleosOnDeviceWelcomeTtsAdapter(
     context: Context,
@@ -56,7 +69,6 @@ class PleosOnDeviceWelcomeTtsAdapter(
 
     override fun speak(text: String, onCompleted: () -> Unit, onError: (String) -> Unit) {
         runCatching {
-            // 공식 가이드: speak(text, true) (isFinal = true)
             textToSpeech.speak(text, true)
             onCompleted()
         }.onFailure { e ->
@@ -81,8 +93,6 @@ class PleosNaviSdkGateway(context: Context) : NaviRouteGateway {
     }
 
     override suspend fun dispatchRouteWithWaypoints(slice: NaviRouteSlice): Boolean = runCatching {
-        // 공식 문서(Route requests with waypoints) 8-인자 생성자 규격 준수:
-        // RouteInfo(lat, lng, null, null, name, poiId, address, "0")
         val destination = RouteInfo(
             slice.finalDestination.latitude,
             slice.finalDestination.longitude,
@@ -96,30 +106,10 @@ class PleosNaviSdkGateway(context: Context) : NaviRouteGateway {
 
         val waypoints = buildList {
             slice.firstWaypoint?.let { wp1 ->
-                add(
-                    RequestWaypointInfo(
-                        wp1.latitude,
-                        wp1.longitude,
-                        wp1.pitstopName,
-                        WaypointIndex.FIRST,
-                        wp1.poiId,
-                        wp1.address,
-                        "0"
-                    )
-                )
+                add(RequestWaypointInfo(wp1.latitude, wp1.longitude, wp1.pitstopName, WaypointIndex.FIRST, wp1.poiId, wp1.address, "0"))
             }
             slice.secondWaypoint?.let { wp2 ->
-                add(
-                    RequestWaypointInfo(
-                        wp2.latitude,
-                        wp2.longitude,
-                        wp2.pitstopName,
-                        WaypointIndex.SECOND,
-                        wp2.poiId,
-                        wp2.address,
-                        "0"
-                    )
-                )
+                add(RequestWaypointInfo(wp2.latitude, wp2.longitude, wp2.pitstopName, WaypointIndex.SECOND, wp2.poiId, wp2.address, "0"))
             }
         }
 
@@ -141,8 +131,86 @@ class PleosNaviSdkGateway(context: Context) : NaviRouteGateway {
     }
 }
 
+private fun SeatZone.toDoorValue(): DoorValue = when (this) {
+    SeatZone.ROW_1_LEFT -> DoorValue.ROW_1_LEFT
+    SeatZone.ROW_1_RIGHT -> DoorValue.ROW_1_RIGHT
+    SeatZone.ROW_2_LEFT -> DoorValue.ROW_2_LEFT
+    SeatZone.ROW_2_RIGHT -> DoorValue.ROW_2_RIGHT
+}
+
+private fun SeatZone.toSeatValue(): SeatValue = when (this) {
+    SeatZone.ROW_1_LEFT -> SeatValue.ROW_1_LEFT
+    SeatZone.ROW_1_RIGHT -> SeatValue.ROW_1_RIGHT
+    SeatZone.ROW_2_LEFT -> SeatValue.ROW_2_LEFT
+    SeatZone.ROW_2_RIGHT -> SeatValue.ROW_2_RIGHT
+}
+
+/**
+ * Vehicle SDK 읽기/쓰기 + `register*` 실시간 콜백 어댑터.
+ * registerTelemetryCallbacks()가 호출되면 기어·브레이크·조향각·와이퍼·방향지시등·도어(4)·착좌(2)·벨트(2)를 SDK에 실제로 등록한다.
+ */
 class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicleHardware {
-    private val listeners = mutableSetOf<VehicleTelemetryListener>()
+    private val listeners = CopyOnWriteArraySet<VehicleTelemetryListener>()
+    private var sdkRegistered = false
+
+    private inline fun fanOut(block: VehicleTelemetryListener.() -> Unit) = listeners.forEach { runCatching { it.block() } }
+    private fun log(line: String) = fanOut { onTelemetrySourceLog(line) }
+
+    private val gearListener = object : GearSelectionListener {
+        override fun onSelected(gear: VehicleGear?) {
+            val mapped = when (gear) {
+                VehicleGear.GEAR_PARK -> GearPosition.P
+                VehicleGear.GEAR_REVERSE -> GearPosition.R
+                VehicleGear.GEAR_NEUTRAL -> GearPosition.N
+                null, VehicleGear.GEAR_UNKNOWN -> return
+                else -> GearPosition.D
+            }
+            fanOut { onGearChanged(mapped) }
+        }
+        override fun onFailed(e: Exception) = log("gear 콜백 실패: ${e.message}")
+    }
+    private val brakeListener = object : BrakePedalStatusListener {
+        override fun onBrakePedalStatusUpdated(status: Boolean?) { status?.let { v -> fanOut { onBrakePedalChanged(v) } } }
+        override fun onFailed(e: Exception) = log("brake 콜백 실패: ${e.message}")
+    }
+    private val steeringListener = object : SteeringWheelAngleListener {
+        override fun onSteeringWheelAngleUpdated(angle: Float?) { angle?.let { a -> fanOut { onSteeringAngleChanged(a, 0f) } } }
+        override fun onFailed(e: Exception) = log("steering 콜백 실패: ${e.message}")
+    }
+    private val wiperListener = object : WiperStateListener {
+        override fun onWiperStateUpdated(state: WiperState?) { fanOut { onWiperHighChanged(state == WiperState.ON) } }
+        override fun onFailed(e: Exception) = log("wiper 콜백 실패: ${e.message}")
+    }
+    private val turnListener = object : TurnSignalStateListener {
+        override fun onTurnSignalStateUpdated(value: TurnSignalValue?) {
+            val mapped = when (value) {
+                TurnSignalValue.LEFT -> PleosTurnSignalState.LEFT
+                TurnSignalValue.RIGHT -> PleosTurnSignalState.RIGHT
+                else -> PleosTurnSignalState.OFF
+            }
+            fanOut { onTurnSignalChanged(mapped) }
+        }
+        override fun onFailed(e: Exception) = log("turnSignal 콜백 실패: ${e.message}")
+    }
+    private val doorListeners: Map<SeatZone, DoorPositionListener> = SeatZone.entries.associateWith { zone ->
+        object : DoorPositionListener {
+            override fun onPositionUpdated(pos: Int?) { pos?.let { p -> fanOut { onDoorStateChanged(zone, p > 0, System.currentTimeMillis()) } } }
+            override fun onFailed(e: Exception) = log("door[$zone] 콜백 실패: ${e.message}")
+        }
+    }
+    private val seatZones = listOf(SeatZone.ROW_1_RIGHT, SeatZone.ROW_2_RIGHT, SeatZone.ROW_2_LEFT)
+    private val occupancyListeners: Map<SeatZone, SeatOccupancyListener> = seatZones.associateWith { zone ->
+        object : SeatOccupancyListener {
+            override fun onSeatOccupancyUpdated(value: Boolean?) { value?.let { v -> fanOut { onSeatOccupancyChanged(zone, v) } } }
+            override fun onFailed(e: Exception) = log("seat[$zone] 콜백 실패: ${e.message}")
+        }
+    }
+    private val beltListeners: Map<SeatZone, SeatBeltBuckledStateListener> = seatZones.associateWith { zone ->
+        object : SeatBeltBuckledStateListener {
+            override fun onSeatBeltBuckledStateUpdated(state: Boolean?) { state?.let { v -> fanOut { onSeatBeltChanged(zone, v, System.currentTimeMillis()) } } }
+            override fun onFailed(e: Exception) = log("belt[$zone] 콜백 실패: ${e.message}")
+        }
+    }
 
     override suspend fun initialize(): Boolean = runCatching {
         vehicle.initialize()
@@ -150,76 +218,68 @@ class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicl
     }.getOrDefault(false)
 
     override suspend fun probeCapabilities(): VehicleCapabilityMatrix {
-        val beltSupported = suspendCancellableCoroutine<Boolean> { cont ->
+        val beltAreas = suspendCancellableCoroutine<Int> { cont ->
             runCatching {
-                vehicle.getSeat().checkSeatBeltBuckledCapabilities(
-                    onComplete = { _, areas -> cont.resume(areas.isNotEmpty()) },
-                    onFailed = { cont.resume(false) }
-                )
-            }.onFailure { cont.resume(false) }
+                vehicle.getSeat().checkSeatBeltBuckledCapabilities({ areas: List<SeatArea> -> cont.resume(areas.size) }, { cont.resume(0) })
+            }.onFailure { cont.resume(0) }
         }
+        val occupancyAreas = suspendCancellableCoroutine<Int> { cont ->
+            runCatching {
+                vehicle.getSeat().checkSeatOccupancyCapabilities({ areas: List<SeatArea> -> cont.resume(areas.size) }, { cont.resume(0) })
+            }.onFailure { cont.resume(0) }
+        }
+        val doorPositionAreas = suspendCancellableCoroutine<Int> { cont ->
+            runCatching {
+                vehicle.getDoor().checkDoorPositionCapabilities({ m: Map<DoorArea, *> -> cont.resume(m.size) }, { cont.resume(0) })
+            }.onFailure { cont.resume(0) }
+        }
+        val doorLockAreas = suspendCancellableCoroutine<Int> { cont ->
+            runCatching {
+                vehicle.getDoor().checkDoorLockCapabilities({ areas: List<DoorArea> -> cont.resume(areas.size) }, { cont.resume(0) })
+            }.onFailure { cont.resume(0) }
+        }
+        val windowAreas = suspendCancellableCoroutine<Int> { cont ->
+            runCatching {
+                vehicle.getWindow().checkWindowPositionCapabilities({ m: Map<WindowArea, *> -> cont.resume(m.size) }, { cont.resume(0) })
+            }.onFailure { cont.resume(0) }
+        }
+        log("capabilities: belt=$beltAreas occupancy=$occupancyAreas doorPos=$doorPositionAreas doorLock=$doorLockAreas window=$windowAreas")
         return VehicleCapabilityMatrix(
-            doorPositionSupported = true,
-            doorLockWritable = true,
-            windowPositionWritable = true,
-            row1RightOccupancySupported = true,
-            row2OccupancySupported = true,
-            seatBeltBuckledSupported = beltSupported,
-            hvacFanSupported = true,
+            doorPositionSupported = doorPositionAreas > 0,
+            doorLockWritable = doorLockAreas > 0,
+            windowPositionWritable = windowAreas > 0,
+            row1RightOccupancySupported = occupancyAreas > 0,
+            row2OccupancySupported = occupancyAreas > 1,
+            seatBeltBuckledSupported = beltAreas > 0,
+            hvacFanSupported = false,
             hvacFanWritable = false,
             hvacFanBoundsByZone = mapOf(SeatZone.ROW_1_LEFT to IntBounds(1, 5)),
-            readingLightWritable = true
+            readingLightWritable = true,
+            steeringAngleSupported = true,
+            brakePedalSupported = true,
+            wiperStateSupported = true
         )
     }
 
     override suspend fun readDoorOpen(zone: SeatZone): Boolean? = suspendCancellableCoroutine { cont ->
-        val dv = when (zone) {
-            SeatZone.ROW_1_LEFT -> DoorValue.ROW_1_LEFT
-            SeatZone.ROW_1_RIGHT -> DoorValue.ROW_1_RIGHT
-            SeatZone.ROW_2_LEFT -> DoorValue.ROW_2_LEFT
-            SeatZone.ROW_2_RIGHT -> DoorValue.ROW_2_RIGHT
-        }
         runCatching {
-            vehicle.getDoor().getCurrentDoorPosition(
-                area = DoorArea(dv),
-                onComplete = { pos -> cont.resume((pos ?: 0) > 0) },
-                onFailed = { cont.resume(null) }
-            )
+            vehicle.getDoor().getCurrentDoorPosition(DoorArea(zone.toDoorValue()), { pos -> cont.resume((pos ?: 0) > 0) }, { cont.resume(null) })
         }.onFailure { cont.resume(null) }
     }
 
     override suspend fun readSeatOccupied(zone: SeatZone): Boolean? = suspendCancellableCoroutine { cont ->
-        val sv = when (zone) {
-            SeatZone.ROW_1_LEFT -> SeatValue.ROW_1_LEFT
-            SeatZone.ROW_1_RIGHT -> SeatValue.ROW_1_RIGHT
-            SeatZone.ROW_2_LEFT -> SeatValue.ROW_2_LEFT
-            SeatZone.ROW_2_RIGHT -> SeatValue.ROW_2_RIGHT
-        }
         runCatching {
-            vehicle.getSeat().getCurrentSeatOccupancy(
-                area = SeatArea(sv),
-                onComplete = { occupied -> cont.resume(occupied) },
-                onFailed = { cont.resume(null) }
-            )
+            vehicle.getSeat().getCurrentSeatOccupancy(SeatArea(zone.toSeatValue()), { occupied -> cont.resume(occupied) }, { cont.resume(null) })
         }.onFailure { cont.resume(null) }
     }
 
     override suspend fun readSeatBeltBuckled(zone: SeatZone): Boolean? = suspendCancellableCoroutine { cont ->
-        val sv = when (zone) {
-            SeatZone.ROW_1_LEFT -> SeatValue.ROW_1_LEFT
-            SeatZone.ROW_1_RIGHT -> SeatValue.ROW_1_RIGHT
-            SeatZone.ROW_2_LEFT -> SeatValue.ROW_2_LEFT
-            SeatZone.ROW_2_RIGHT -> SeatValue.ROW_2_RIGHT
-        }
         runCatching {
-            vehicle.getSeat().getCurrentSeatBeltBuckledState(
-                area = SeatArea(sv),
-                onComplete = { buckled -> cont.resume(buckled) },
-                onFailed = { cont.resume(null) }
-            )
+            vehicle.getSeat().getCurrentSeatBeltBuckledState(SeatArea(zone.toSeatValue()), { buckled -> cont.resume(buckled) }, { cont.resume(null) })
         }.onFailure { cont.resume(null) }
     }
 
+    // 공조·앰비언트는 이번 범위에서 제어하지 않는다(미지원 → null/false 반환, 게이트웨이가 건너뜀).
     override suspend fun readSeatHeaterLevel(zone: SeatZone): Int? = null
     override suspend fun writeSeatHeaterLevel(zone: SeatZone, level: Int): Boolean = false
     override suspend fun readHvacFanSpeed(zone: SeatZone): Int? = null
@@ -233,6 +293,28 @@ class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicl
 
     override fun registerTelemetryCallbacks(listener: VehicleTelemetryListener) {
         listeners.add(listener)
+        if (sdkRegistered) return
+        sdkRegistered = true
+        val ok = mutableListOf<String>()
+        val failed = mutableListOf<String>()
+        fun attempt(name: String, block: () -> Unit) = runCatching(block).onSuccess { ok += name }.onFailure { failed += "$name(${it.message})" }
+
+        attempt("gear") { vehicle.getGear().registerGearSelection(gearListener) }
+        attempt("brake") { vehicle.getBrake().registerBrakePedalStatus(brakeListener) }
+        attempt("steering") { vehicle.getSteeringWheel().registerSteeringWheelAngle(steeringListener) }
+        attempt("wiper") { vehicle.getWiper().registerWiperState(WindowArea(WindowValue.FRONT_WINDSHIELD), wiperListener) }
+        attempt("turnSignal") { vehicle.getTurnSignal().registerTurnSignalState(turnListener) }
+        doorListeners.forEach { (zone, l) -> attempt("door[$zone]") { vehicle.getDoor().registerDoorPosition(DoorArea(zone.toDoorValue()), l) } }
+        occupancyListeners.forEach { (zone, l) -> attempt("seat[$zone]") { vehicle.getSeat().registerSeatOccupancy(SeatArea(zone.toSeatValue()), l) } }
+        beltListeners.forEach { (zone, l) -> attempt("belt[$zone]") { vehicle.getSeat().registerSeatBeltBuckledState(SeatArea(zone.toSeatValue()), l) } }
+
+        // 현재값 1회 조회 → 콜백이 변화 시점에만 오더라도 초기 상태를 확보한다.
+        runCatching { vehicle.getGear().getCurrentGearSelectionState({ g -> gearListener.onSelected(g) }, { }) }
+        runCatching { vehicle.getTurnSignal().getCurrentTurnSignalState({ v -> turnListener.onTurnSignalStateUpdated(v) }, { }) }
+        doorListeners.forEach { (zone, l) ->
+            runCatching { vehicle.getDoor().getCurrentDoorPosition(DoorArea(zone.toDoorValue()), { p -> l.onPositionUpdated(p) }, { }) }
+        }
+        log("Vehicle SDK register* 등록: ${ok.size}건 성공" + (if (failed.isNotEmpty()) " · 실패 ${failed.joinToString()}" else ""))
     }
 
     override fun unregisterTelemetryCallbacks(listener: VehicleTelemetryListener) {
@@ -240,6 +322,17 @@ class PleosLowLevelVehicleAdapter(private val vehicle: Vehicle) : LowLevelVehicl
     }
 
     override fun release() {
+        if (sdkRegistered) {
+            runCatching { vehicle.getGear().unregisterGearSelection(gearListener) }
+            runCatching { vehicle.getBrake().unregisterBrakePedalStatus(brakeListener) }
+            runCatching { vehicle.getSteeringWheel().unregisterSteeringWheelAngle(steeringListener) }
+            runCatching { vehicle.getWiper().unregisterWiperState(WindowArea(WindowValue.FRONT_WINDSHIELD), wiperListener) }
+            runCatching { vehicle.getTurnSignal().unregisterTurnSignalState(turnListener) }
+            doorListeners.forEach { (zone, l) -> runCatching { vehicle.getDoor().unregisterDoorPosition(DoorArea(zone.toDoorValue()), l) } }
+            occupancyListeners.forEach { (zone, l) -> runCatching { vehicle.getSeat().unregisterSeatOccupancy(SeatArea(zone.toSeatValue()), l) } }
+            beltListeners.forEach { (zone, l) -> runCatching { vehicle.getSeat().unregisterSeatBeltBuckledState(SeatArea(zone.toSeatValue()), l) } }
+            sdkRegistered = false
+        }
         listeners.clear()
     }
 }
@@ -251,6 +344,7 @@ class PleosRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
     private val pleosNavi = PleosNaviSdkGateway(appContext)
     private val pleosTts = PleosOnDeviceWelcomeTtsAdapter(appContext, useHybridServerMode = false)
     private var locationInitialized = false
+    private var streamingListener: FusedLocationListener? = null
 
     override val runtimeBadgeLabel: String = "[SDK 실연동]"
     override val usesRealPleosSdk: Boolean = true
@@ -262,7 +356,7 @@ class PleosRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
         val statusParts = mutableListOf<String>()
         runCatching {
             vehicle.initialize()
-            statusParts.add("Vehicle(2.3.1).initialize() 성공")
+            statusParts.add("Vehicle(2.3.2).initialize() 성공")
         }.onFailure { e ->
             statusParts.add("Vehicle.initialize() 예외: ${e.message}")
         }
@@ -276,7 +370,7 @@ class PleosRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
             if (fusedLocation.isSupported()) {
                 fusedLocation.initialize()
                 locationInitialized = true
-                statusParts.add("FusedLocation(1.1.2) 지원 확인 및 초기화")
+                statusParts.add("FusedLocation(1.1.3) 지원 확인 및 초기화")
             } else {
                 statusParts.add("FusedLocation 미지원 환경 -> 수동 오프셋 폴백 활성")
             }
@@ -289,15 +383,10 @@ class PleosRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
 
     override fun queryStep5FrontLeftDoorPosition(onResult: (pos: Int?, logLine: String) -> Unit) {
         runCatching {
-            val door = vehicle.getDoor()
-            door.getCurrentDoorPosition(
-                area = DoorArea(DoorValue.ROW_1_LEFT),
-                onComplete = { pos: Int? ->
-                    onResult(pos, "[Step 5 실호출] door.getCurrentDoorPosition(ROW_1_LEFT) -> onComplete(pos=$pos)")
-                },
-                onFailed = { e: Exception ->
-                    onResult(null, "[Step 5 실호출] door.getCurrentDoorPosition 실패 -> ${e.message}")
-                }
+            vehicle.getDoor().getCurrentDoorPosition(
+                DoorArea(DoorValue.ROW_1_LEFT),
+                { pos: Int? -> onResult(pos, "[Step 5 실호출] door.getCurrentDoorPosition(ROW_1_LEFT) -> onComplete(pos=$pos)") },
+                { e: Exception -> onResult(null, "[Step 5 실호출] door.getCurrentDoorPosition 실패 -> ${e.message}") }
             )
         }.onFailure { e ->
             onResult(null, "[Step 5 예외] ${e.message}")
@@ -307,106 +396,70 @@ class PleosRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
     override fun queryVehicleVin(onResult: (vin: String?, logLine: String) -> Unit) {
         runCatching {
             vehicle.getCarInfo().getVINInfo(
-                onComplete = { vin: String? ->
-                    onResult(vin, "carInfo.getVINInfo() -> ${vin ?: "null (사용자 설정 차종 폴백)"}")
-                },
-                onFailed = { e: Exception ->
-                    onResult(null, "carInfo.getVINInfo() 폴백 (${e.message})")
-                }
+                { vin: String? -> onResult(vin, "carInfo.getVINInfo() -> ${vin ?: "null (사용자 설정 차종 폴백)"}") },
+                { e: Exception -> onResult(null, "carInfo.getVINInfo() 폴백 (${e.message})") }
             )
         }.onFailure { e ->
             onResult(null, "carInfo.getVINInfo() 미지원 (${e.message})")
         }
     }
 
+    private fun LocationData?.toReading(prefix: String): VehicleLocationReading {
+        if (this == null) {
+            return VehicleLocationReading(true, null, null, null, null, "$prefix -> null (저신뢰 텍스트 안내 폴백)")
+        }
+        val lat = latitude
+        val lng = longitude
+        val heading = heading.toDouble()
+        val conf = confidence.toDouble()
+        return VehicleLocationReading(
+            supported = true, latitude = lat, longitude = lng, headingDeg = heading, confidence = conf,
+            rawSummary = "FusedLocation(${String.format(Locale.US, "%.5f", lat)}, ${String.format(Locale.US, "%.5f", lng)}, conf=${String.format(Locale.US, "%.2f", conf)})"
+        )
+    }
+
     override fun queryLastKnownVehicleLocation(onResult: (VehicleLocationReading) -> Unit) {
         if (!locationInitialized) {
-            onResult(
-                VehicleLocationReading(
-                    supported = false,
-                    latitude = null,
-                    longitude = null,
-                    headingDeg = null,
-                    confidence = null,
-                    rawSummary = "FusedLocation.isSupported() == false (수동 간판 오프셋 모드)"
-                )
-            )
+            onResult(VehicleLocationReading(false, null, null, null, null, "FusedLocation.isSupported() == false (수동 간판 오프셋 모드)"))
             return
         }
-
         runCatching {
             fusedLocation.getLastKnownLocation(object : FusedLocationListener {
-                override fun onChanged(location: LocationData?) {
-                    if (location == null) {
-                        onResult(
-                            VehicleLocationReading(
-                                supported = true,
-                                latitude = null,
-                                longitude = null,
-                                headingDeg = null,
-                                confidence = null,
-                                rawSummary = "getLastKnownLocation() -> null (저신뢰 텍스트 안내 폴백)"
-                            )
-                        )
-                        return
-                    }
-                    val lat = location.latitude.toDouble()
-                    val lng = location.longitude.toDouble()
-                    val heading = location.heading.toDouble()
-                    val conf = location.confidence.toDouble()
-                    onResult(
-                        VehicleLocationReading(
-                            supported = true,
-                            latitude = lat,
-                            longitude = lng,
-                            headingDeg = heading,
-                            confidence = conf,
-                            rawSummary = "FusedLocation(${String.format(Locale.US, "%.5f", lat)}, ${String.format(Locale.US, "%.5f", lng)}, conf=${String.format(Locale.US, "%.2f", conf)})"
-                        )
-                    )
-                }
-
-                override fun onError(exception: Exception) {
-                    onResult(
-                        VehicleLocationReading(
-                            supported = true,
-                            latitude = null,
-                            longitude = null,
-                            headingDeg = null,
-                            confidence = null,
-                            rawSummary = "FusedLocation 오류 폴백: ${exception.message}"
-                        )
-                    )
-                }
+                override fun onChanged(location: LocationData?) = onResult(location.toReading("getLastKnownLocation()"))
+                override fun onError(exception: Exception) =
+                    onResult(VehicleLocationReading(true, null, null, null, null, "FusedLocation 오류 폴백: ${exception.message}"))
             })
         }.onFailure { e ->
-            onResult(
-                VehicleLocationReading(
-                    supported = false,
-                    latitude = null,
-                    longitude = null,
-                    headingDeg = null,
-                    confidence = null,
-                    rawSummary = "FusedLocation 호출 예외: ${e.message}"
-                )
-            )
+            onResult(VehicleLocationReading(false, null, null, null, null, "FusedLocation 호출 예외: ${e.message}"))
         }
+    }
+
+    override fun startLocationUpdates(onFix: (VehicleLocationReading) -> Unit) {
+        if (!locationInitialized || streamingListener != null) return
+        val l = object : FusedLocationListener {
+            override fun onChanged(location: LocationData?) { if (location != null) onFix(location.toReading("stream")) }
+            override fun onError(exception: Exception) = onFix(VehicleLocationReading(true, null, null, null, null, "FusedLocation 스트림 오류: ${exception.message}"))
+        }
+        runCatching { fusedLocation.registerFusedLocationCallback(l); streamingListener = l }
+    }
+
+    override fun stopLocationUpdates() {
+        streamingListener?.let { runCatching { fusedLocation.unregisterFusedLocationCallback(it) } }
+        streamingListener = null
     }
 
     override fun queryTurnSignalState(onResult: (PleosTurnSignalState, String) -> Unit) {
         runCatching {
             vehicle.getTurnSignal().getCurrentTurnSignalState(
-                onComplete = { state ->
-                    val mapped = when (state?.name?.uppercase()) {
-                        "RIGHT", "TURN_RIGHT" -> PleosTurnSignalState.RIGHT
-                        "LEFT", "TURN_LEFT" -> PleosTurnSignalState.LEFT
+                { state ->
+                    val mapped = when (state) {
+                        TurnSignalValue.RIGHT -> PleosTurnSignalState.RIGHT
+                        TurnSignalValue.LEFT -> PleosTurnSignalState.LEFT
                         else -> PleosTurnSignalState.OFF
                     }
                     onResult(mapped, "turnSignal.getCurrentTurnSignalState() -> ${state?.name ?: "OFF"}")
                 },
-                onFailed = { e ->
-                    onResult(PleosTurnSignalState.OFF, "turnSignal 조회 폴백: ${e.message}")
-                }
+                { e -> onResult(PleosTurnSignalState.OFF, "turnSignal 조회 폴백: ${e.message}") }
             )
         }.onFailure { e ->
             onResult(PleosTurnSignalState.OFF, "turnSignal 예외: ${e.message}")
@@ -414,22 +467,16 @@ class PleosRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
     }
 
     override fun setPassengerDoorUnlocked(unlocked: Boolean, onResult: (Boolean, String) -> Unit) {
-        // 공식 문서(Door.setDoorLock) 극성 준수: value = true(잠금 / LOCK), value = false(잠금 해제 / UNLOCK)
+        // Door.setDoorLock 극성: value = true(잠금), false(잠금 해제)
         val lockArgument = !unlocked
         runCatching {
             vehicle.getDoor().setDoorLock(
-                area = DoorArea(DoorValue.ROW_1_RIGHT),
-                value = lockArgument,
-                onComplete = { _, appliedLockState ->
-                    val nowUnlocked = (appliedLockState == false)
-                    onResult(
-                        nowUnlocked,
-                        "door.setDoorLock(ROW_1_RIGHT, value=$lockArgument) -> onComplete(locked=$appliedLockState)"
-                    )
+                DoorArea(DoorValue.ROW_1_RIGHT),
+                lockArgument,
+                { _, appliedLockState ->
+                    onResult(appliedLockState == false, "door.setDoorLock(ROW_1_RIGHT, value=$lockArgument) -> onComplete(locked=$appliedLockState)")
                 },
-                onFailed = { e ->
-                    onResult(false, "door.setDoorLock 실패 -> 수동 도어 언락 안내 (${e.message})")
-                }
+                { e -> onResult(false, "door.setDoorLock 실패 -> 수동 도어 언락 안내 (${e.message})") }
             )
         }.onFailure { e ->
             onResult(false, "door.setDoorLock 예외 (${e.message})")
@@ -440,15 +487,13 @@ class PleosRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
         val clamped = targetPercent.coerceIn(0, 100)
         runCatching {
             vehicle.getWindow().setWindowPosition(
-                area = WindowArea(WindowValue.ROW_1_RIGHT),
-                value = clamped,
-                onComplete = { _, appliedPos ->
+                WindowArea(WindowValue.ROW_1_RIGHT),
+                clamped,
+                { _, appliedPos ->
                     val actual = appliedPos ?: clamped
                     onResult(actual, "window.setWindowPosition(ROW_1_RIGHT, $clamped) -> onComplete($actual%)")
                 },
-                onFailed = { e ->
-                    onResult(0, "window.setWindowPosition 실패 (${e.message})")
-                }
+                { e -> onResult(0, "window.setWindowPosition 실패 (${e.message})") }
             )
         }.onFailure { e ->
             onResult(0, "window.setWindowPosition 예외 (${e.message})")
@@ -458,13 +503,19 @@ class PleosRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
     override fun setPassengerReadingLight(enabled: Boolean, onResult: (Boolean, String) -> Unit) {
         val targetSwitch = if (enabled) LightSwitch.ON else LightSwitch.OFF
         runCatching {
-            vehicle.getLight().setCabinLightSwitch(
-                value = targetSwitch,
-                onComplete = { applied ->
-                    onResult(applied == LightSwitch.ON, "light.setCabinLightSwitch($targetSwitch) -> onComplete($applied)")
-                },
-                onFailed = { e ->
-                    onResult(false, "실내 조명 제어 미지원 폴백 (${e.message})")
+            vehicle.getLight().setReadingLightSwitch(
+                SeatArea(SeatValue.ROW_1_RIGHT),
+                targetSwitch,
+                { applied -> onResult(applied == LightSwitch.ON, "light.setReadingLightSwitch(ROW_1_RIGHT, $targetSwitch) -> onComplete($applied)") },
+                { e ->
+                    // 독서등 미지원 트림 → 실내등으로 폴백
+                    runCatching {
+                        vehicle.getLight().setCabinLightSwitch(
+                            targetSwitch,
+                            { applied -> onResult(applied == LightSwitch.ON, "light.setCabinLightSwitch($targetSwitch) 폴백 -> $applied") },
+                            { e2 -> onResult(false, "실내 조명 제어 미지원 (${e.message} / ${e2.message})") }
+                        )
+                    }.onFailure { onResult(false, "실내 조명 제어 폴백 실패 (${e.message})") }
                 }
             )
         }.onFailure { e ->
@@ -476,13 +527,9 @@ class PleosRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
         val seatVal = if (useRearRight) SeatValue.ROW_2_RIGHT else SeatValue.ROW_1_RIGHT
         runCatching {
             vehicle.getSeat().getCurrentSeatOccupancy(
-                area = SeatArea(seatVal),
-                onComplete = { occupied: Boolean? ->
-                    onResult(occupied, "seat.getCurrentSeatOccupancy($seatVal) -> onComplete($occupied)")
-                },
-                onFailed = { e: Exception ->
-                    onResult(null, "seat.getCurrentSeatOccupancy 미지원 폴백 (${e.message})")
-                }
+                SeatArea(seatVal),
+                { occupied: Boolean? -> onResult(occupied, "seat.getCurrentSeatOccupancy($seatVal) -> onComplete($occupied)") },
+                { e: Exception -> onResult(null, "seat.getCurrentSeatOccupancy 미지원 폴백 (${e.message})") }
             )
         }.onFailure { e ->
             onResult(null, "착좌 센서 조회 예외 (${e.message})")
@@ -490,8 +537,10 @@ class PleosRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
     }
 
     override fun release() {
+        stopLocationUpdates()
         runCatching { pleosTts.release() }
         runCatching { pleosNavi.release() }
+        runCatching { lowLevelHardware.release() }
         if (locationInitialized) {
             runCatching { fusedLocation.release() }
             locationInitialized = false

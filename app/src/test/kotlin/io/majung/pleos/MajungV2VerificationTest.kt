@@ -15,6 +15,7 @@ import io.majung.pleos.model.PickupPhase
 import io.majung.pleos.model.PickupSessionShareTicket
 import io.majung.pleos.model.SafePitstopStop
 import io.majung.pleos.model.SeatZone
+import io.majung.pleos.model.VehicleFacts
 import io.majung.pleos.orchestrator.PickupEtaOrchestrator
 import io.majung.pleos.orchestrator.RelayNotificationGateway
 import io.majung.pleos.orchestrator.SafePitstopResolver
@@ -106,7 +107,8 @@ class MajungV2VerificationTest {
                 remainingSeconds: Int,
                 phase: PickupPhase,
                 boardingDoorUnlocked: Boolean,
-                welcomeGreetingActive: Boolean
+                welcomeGreetingActive: Boolean,
+                facts: VehicleFacts
             ): Boolean = true
 
             override suspend fun sendKidsFallbackSms(stop: SafePitstopStop, smsBody: String): Boolean = true

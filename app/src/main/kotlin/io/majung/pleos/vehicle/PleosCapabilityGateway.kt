@@ -1,5 +1,6 @@
 package io.majung.pleos.vehicle
 
+import io.majung.pleos.finder.PleosTurnSignalState
 import io.majung.pleos.model.BoardingDetectionMode
 import io.majung.pleos.model.CabinActuatorSnapshot
 import io.majung.pleos.model.GearPosition
@@ -36,15 +37,22 @@ interface LowLevelVehicleHardware {
     fun release()
 }
 
+/**
+ * 차량 신호 수신 계약. pleos 플레이버에서는 Vehicle SDK `register*` 콜백(기어·브레이크·조향각·와이퍼·방향지시등·
+ * 도어·착좌·안전벨트)과 AAOS CarPropertyManager(차속)가, sim 플레이버에서는 시나리오 재생기가 호출한다.
+ */
 interface VehicleTelemetryListener {
     fun onSpeedChanged(speedKmh: Float)
     fun onGearChanged(gear: GearPosition)
     fun onSteeringAngleChanged(angleDeg: Float, rateDegPerSec: Float)
     fun onBrakePedalChanged(pressed: Boolean)
     fun onWiperHighChanged(isHighSpeed: Boolean)
+    fun onTurnSignalChanged(state: PleosTurnSignalState)
     fun onDoorStateChanged(zone: SeatZone, isOpen: Boolean, timestampMs: Long)
     fun onSeatOccupancyChanged(zone: SeatZone, isOccupied: Boolean)
     fun onSeatBeltChanged(zone: SeatZone, isBuckled: Boolean, timestampMs: Long)
+    /** SDK 콜백 실패(onFailed) 또는 미지원 신호를 UI 로그에 투명하게 노출하기 위한 훅 */
+    fun onTelemetrySourceLog(line: String) {}
 }
 
 class PleosCapabilityGateway(

@@ -16,8 +16,8 @@ android {
         // 공식 시작하기 가이드 필수 조건: minSdk API 28 이상
         minSdk = 28
         targetSdk = 34
-        versionCode = 200
-        versionName = "2.0.0"
+        versionCode = 210
+        versionName = "2.1.0"
 
         // 에뮬레이터(Pleos Connect AVD / 표준 AVD)에서 호스트 PC의 relay-server(8080 포트)로 즉시 연결되는 기본 주소
         buildConfigField("String", "DEFAULT_RELAY_URL", "\"http://10.0.2.2:8080\"")
@@ -88,16 +88,14 @@ dependencies {
     implementation(libs.okhttp.sse)
 
     // 공식 가이드 기준 Pleos Connect SDK 의존성 (pleos flavor 전용)
-    // - implementation("ai.pleos.playground:Vehicle:2.3.1")
+    // - implementation("ai.pleos.playground:Vehicle:2.3.2")
     // - implementation("ai.pleos.playground:NaviHelper:3.0.5")
-    // - implementation("ai.pleos.playground:FusedLocation:1.1.2")
+    // - implementation("ai.pleos.playground:FusedLocation:1.1.3")
     // - implementation("ai.pleos.playground:TextToSpeech:3.3.1")
-    // - implementation("ai.pleos.playground:SpeechToText:3.3.1")
     "pleosImplementation"(libs.pleos.vehicle)
     "pleosImplementation"(libs.pleos.navi)
     "pleosImplementation"(libs.pleos.location)
     "pleosImplementation"(libs.pleos.tts)
-    "pleosImplementation"(libs.pleos.stt)
 
     testImplementation(libs.junit)
     testImplementation(libs.org.json)

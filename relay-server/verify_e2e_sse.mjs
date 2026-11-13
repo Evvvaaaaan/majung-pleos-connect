@@ -30,6 +30,11 @@ try {
       plateLast4: "4568",
       offsetMeters: 12,
       locationReliability: "HIGH_CONFIDENCE_AUTO",
+      stoppedInPark: true, // 차량 신호 요약(VehicleFacts)은 통과해야 함
+      passengerBuckled: false,
+      gear: "P",
+      speedBucketKmh: 0,
+      distanceBucketMeters: 10,
       candidateSignboards: ["약국", { latitude: 37.12345 }],
       latitude: 37.12345, // 서버에서 자동 제거되어야 함
       longitude: 127.12345, // 서버에서 자동 제거되어야 함
@@ -49,6 +54,12 @@ try {
   assert.notEqual(putJson.state.maxExpiresAtEpochMs, 2);
   assert.deepEqual(putJson.state.candidateSignboards, ["약국"]);
   assert.equal(putJson.state.maxTtlMinutes, 20);
+  // 차량 신호 요약(VehicleFacts)은 통과, 차량 원시 좌표는 차단
+  assert.equal(putJson.state.stoppedInPark, true);
+  assert.equal(putJson.state.passengerBuckled, false);
+  assert.equal(putJson.state.gear, "P");
+  assert.equal(putJson.state.speedBucketKmh, 0);
+  assert.equal(putJson.state.distanceBucketMeters, 10);
 
   const updateRes = await fetch(`${base}/api/v1/sessions/${sessionId}`, {
     method: "PUT",

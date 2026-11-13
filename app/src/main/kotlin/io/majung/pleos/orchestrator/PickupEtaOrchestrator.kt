@@ -10,6 +10,7 @@ import io.majung.pleos.model.PickupPhase
 import io.majung.pleos.model.PickupSessionShareTicket
 import io.majung.pleos.model.RecipientChannel
 import io.majung.pleos.model.SafePitstopStop
+import io.majung.pleos.model.VehicleFacts
 import io.majung.pleos.safety.DrivingLoadGate
 import io.majung.pleos.safety.DrivingLoadSnapshot
 import io.majung.pleos.safety.GatedPrompt
@@ -39,7 +40,8 @@ interface RelayNotificationGateway {
         remainingSeconds: Int,
         phase: PickupPhase,
         boardingDoorUnlocked: Boolean = false,
-        welcomeGreetingActive: Boolean = false
+        welcomeGreetingActive: Boolean = false,
+        facts: VehicleFacts = VehicleFacts()
     ): Boolean
 
     suspend fun sendKidsFallbackSms(stop: SafePitstopStop, smsBody: String): Boolean
@@ -55,12 +57,19 @@ data class ActiveSessionUiState(
     val remainingEtaSeconds: Int = 180,
     val boardingEvaluation: BoardingEvaluation? = null,
     val dliScore: Float = 0f,
-    val lastBannerMessage: String = ""
-)
+    val lastBannerMessage: String = "",
+    val boardingDoorUnlocked: Boolean = false,
+    val welcomeGreetingActive: Boolean = false,
+    val vehicleFacts: VehicleFacts = VehicleFacts()
+) {
+    val isSessionActive: Boolean
+        get() = phase != PickupPhase.IDLE && phase != PickupPhase.STEP6_COMPLETED_SHREDDED
+}
 
 /**
- * 마중(MAJUNG) v2.0 6단계 픽업 오케스트레이터
- * - 레거시 동물/숫자 패스코드 완전 제거, 차종 + 번호판 끝 4자리 + 조건부 간판 오프셋 기반 동기화
+ * 마중(MAJUNG) v2.1 6단계 픽업 오케스트레이터
+ * - 차종 + 번호판 끝 4자리 + 조건부 간판 오프셋 기반 동기화
+ * - 차량 신호(P단·도어·착좌·벨트)를 VehicleFacts로 동승자 웹에 그대로 전달
  * - 탑승 완료 또는 수동 종료 시 즉시 토큰 파기(DELETE) + 미종료 시 최대 20분 자동 만료(TTL)
  */
 class PickupEtaOrchestrator(
@@ -110,9 +119,10 @@ class PickupEtaOrchestrator(
 
         dispatchSlidingNaviWindow(listOf(firstStop) + tailStops)
 
+        val facts = _uiState.value.vehicleFacts.copy(signalSource = runtimeSourceBadge)
         when (firstStop.channel) {
             RecipientChannel.ZERO_INSTALL_WEB ->
-                relayGateway.publishSessionState(ticket, firstStop, 180, PickupPhase.STEP1_LANDMARK_AGREED)
+                relayGateway.publishSessionState(ticket, firstStop, 180, PickupPhase.STEP1_LANDMARK_AGREED, facts = facts)
             RecipientChannel.KIDS_SMS ->
                 relayGateway.sendKidsFallbackSms(firstStop, ticket.buildCompactFallbackSms(3))
         }
@@ -130,7 +140,8 @@ class PickupEtaOrchestrator(
             remainingStopsQueue = tailStops,
             activeTicket = ticket,
             remainingEtaSeconds = 180,
-            lastBannerMessage = schoolNotice
+            lastBannerMessage = schoolNotice,
+            vehicleFacts = facts
         )
         _uiState.value = state
 
@@ -190,9 +201,12 @@ class PickupEtaOrchestrator(
             manualPreset = manualPreset
         )
 
+        // 5·6단계에 들어간 뒤에는 위치 갱신으로 단계가 뒤로 돌아가지 않는다.
         val nextPhase = when {
-            speedKmh <= 1.0f && distanceMeters <= 40 -> PickupPhase.STEP4_CURBSIDE_STOPPED
-            eval.approachTriggered -> PickupPhase.STEP2_APPROACHING
+            current.phase.ordinal >= PickupPhase.STEP5_BOARDING_WELCOME.ordinal -> current.phase
+            manualPreset != null -> PickupPhase.STEP4_CURBSIDE_STOPPED
+            speedKmh <= 1.0f && distanceMeters <= 60 -> PickupPhase.STEP4_CURBSIDE_STOPPED
+            eval.approachTriggered -> maxPhase(current.phase, PickupPhase.STEP2_APPROACHING)
             else -> current.phase
         }
 
@@ -209,7 +223,10 @@ class PickupEtaOrchestrator(
             ticket = updatedTicket,
             stop = effectiveStop,
             remainingSeconds = remainingSeconds,
-            phase = nextPhase
+            phase = nextPhase,
+            boardingDoorUnlocked = current.boardingDoorUnlocked,
+            welcomeGreetingActive = current.welcomeGreetingActive,
+            facts = current.vehicleFacts
         )
 
         _uiState.value = current.copy(
@@ -236,9 +253,67 @@ class PickupEtaOrchestrator(
             remainingSeconds = 0,
             phase = nextPhase,
             boardingDoorUnlocked = doorUnlockedInPark,
+            welcomeGreetingActive = welcomeGreetingActive,
+            facts = current.vehicleFacts
+        )
+        _uiState.value = current.copy(
+            phase = nextPhase,
+            boardingDoorUnlocked = doorUnlockedInPark,
             welcomeGreetingActive = welcomeGreetingActive
         )
-        _uiState.value = current.copy(phase = nextPhase)
+    }
+
+    /**
+     * 차량 신호 요약(VehicleFacts)이 의미 있게 바뀌었을 때만 동승자 웹에 재전송한다.
+     * 세션이 없으면 상태만 보관한다(다음 세션 시작 시 첫 publish에 실린다).
+     */
+    suspend fun updateVehicleFacts(facts: VehicleFacts): Boolean {
+        val current = _uiState.value
+        if (current.vehicleFacts == facts) return false
+        _uiState.value = current.copy(vehicleFacts = facts)
+        val stop = current.currentStop
+        val ticket = current.activeTicket
+        if (!current.isSessionActive || stop == null || ticket == null) return false
+        relayGateway.publishSessionState(
+            ticket = ticket,
+            stop = stop,
+            remainingSeconds = current.remainingEtaSeconds,
+            phase = current.phase,
+            boardingDoorUnlocked = current.boardingDoorUnlocked,
+            welcomeGreetingActive = current.welcomeGreetingActive,
+            facts = facts
+        )
+        return true
+    }
+
+    /** 차도 쪽 문 열림처럼 즉시 발화해야 하는 안전 경고. DLI 게이트를 우회(CRITICAL)한다. */
+    fun emitCriticalSafetyPrompt(key: String, spokenText: String, nowMs: Long = System.currentTimeMillis()) {
+        deliverThroughGate(
+            GatedPrompt(
+                id = "$key-$nowMs",
+                categoryKey = key,
+                spokenText = spokenText,
+                bannerTitle = spokenText,
+                priority = PromptPriority.CRITICAL_INTERLOCK,
+                createdAtMs = nowMs
+            ),
+            nowMs
+        )
+    }
+
+    /** 운전 부하가 낮을 때만 전달되는 일반 픽업 안내(접근·정차 확인 등). */
+    fun emitPickupPrompt(key: String, spokenText: String, nowMs: Long = System.currentTimeMillis()) {
+        deliverThroughGate(
+            GatedPrompt(
+                id = "$key-$nowMs",
+                categoryKey = key,
+                spokenText = spokenText,
+                bannerTitle = spokenText,
+                priority = PromptPriority.HIGH_PICKUP_EVENT,
+                createdAtMs = nowMs
+            ),
+            nowMs
+        )
     }
 
     fun onVehicleTelemetryTick(
@@ -266,7 +341,7 @@ class PickupEtaOrchestrator(
                 )
             }
         }
-        _uiState.value = state.copy(dliScore = dli)
+        _uiState.value = _uiState.value.copy(dliScore = dli)
     }
 
     /**
@@ -295,7 +370,13 @@ class PickupEtaOrchestrator(
             phase = PickupPhase.STEP6_COMPLETED_SHREDDED,
             boardingEvaluation = eval,
             remainingEtaSeconds = 0,
-            lastBannerMessage = "탑승 확인 완료 · 일회성 공유 링크 즉시 파기됨 (미종료 시 최대 20분 자동 만료)"
+            boardingDoorUnlocked = false,
+            welcomeGreetingActive = false,
+            lastBannerMessage = if (manualConfirmed) {
+                "탑승 확인(수동) 완료 · 일회성 공유 링크 즉시 파기됨"
+            } else {
+                "문 닫힘·안전벨트 체결 감지 · 일회성 공유 링크 자동 파기됨 (미종료 시 최대 20분 자동 만료)"
+            }
         )
         return true
     }
@@ -313,6 +394,8 @@ class PickupEtaOrchestrator(
     private suspend fun dispatchSlidingNaviWindow(orderedStops: List<SafePitstopStop>) {
         naviGateway.dispatchRouteWithWaypoints(buildNaviRouteSlice(orderedStops))
     }
+
+    private fun maxPhase(a: PickupPhase, b: PickupPhase): PickupPhase = if (a.ordinal >= b.ordinal) a else b
 
     private fun deliverThroughGate(prompt: GatedPrompt, nowMs: Long) {
         drivingLoadGate.submitOrHold(prompt, nowMs).forEach { emitPromptImmediately(it) }
