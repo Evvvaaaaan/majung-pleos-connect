@@ -37,7 +37,27 @@
 2. **가장 빠른 실행 — APK 하나, 서버 불필요 (일반 Android Automotive 에뮬레이터, 2분)**: `apk/majung-v2-sim-release.apk` 설치 → [픽업 시작, 링크 보내기] → 화면 아래 **[시뮬레이션]** → "동승자 제안: 여기서 탈게요 (서버 없이)" → 카드에서 [수락] → [주변 확인 끝, 문 열기] → [시뮬레이션] → "동승자 탑승". 승차 지점 이동, 잠금 해제·창문, 환대, 탑승 완료와 공유 종료까지 기기 안에서 끝납니다. 화면: [`docs/screenshots/sim_apk_only_suggestion.png`](docs/screenshots/sim_apk_only_suggestion.png)
    - **동승자 폰 화면까지 보려면** 중계 서버를 켭니다: `PORT=8080 node relay-server/server.mjs` 후 같은 순서. 동승자 웹은 `curl http://127.0.0.1:8080/api/v1/sessions/_latest` 가 주는 `sessionId`·`passengerToken`으로 `http://localhost:8080/m/<sessionId>?t=<passengerToken>&demoLat=37.49893&demoLng=127.06164` 를 브라우저에서 엽니다.
 3. **Pleos Connect 에뮬레이터 (실 SDK)**: 위 중계 서버 + `apk/majung-v2-pleos-release.apk` → Virtual Console(127.0.0.1:8088)로 기어 P·차속 0·문·착좌·하향등을 주입하면 차량 화면과 동승자 웹이 즉시 반응합니다. 세부는 4-2절.
-4. **코드에서 확인**: 2절의 표(README 주장 ↔ 소스), `node relay-server/verify_e2e_sse.mjs`, `./gradlew :app:testSimDebugUnitTest`(35건), `docs/verification/pleos_emulator_evidence.md`(실제 SDK 로그).
+4. **코드에서 확인**: 2절의 표(README 주장 ↔ 소스), `node relay-server/verify_e2e_sse.mjs`, `./gradlew :app:testSimDebugUnitTest`(56건), `docs/verification/pleos_emulator_evidence.md`(실제 SDK 로그).
+
+### 주장과 그것을 증명하는 테스트
+
+기획서와 이 문서의 주장마다, 그 주장이 깨지면 실패하는 테스트가 있습니다. 푸시할 때마다 GitHub Actions(`.github/workflows/verify.yml`)가 중계 서버 종단 검증과 유닛 테스트 56건을 다시 돌립니다.
+
+| 주장 | 테스트 (app/src/test) |
+| --- | --- |
+| 기어 P + 차속 0일 때만 "차가 멈췄어요"로 넘어간다 | `SignalDrivenPickupCoordinatorTest.stoppedInParkIsTheOnlyThingThatMovesToStep4AndPublishesFactToWeb` |
+| P단이 아니면 [주변 확인 끝, 문 열기]를 거부한다 | `SignalDrivenPickupCoordinatorTest.surroundingsCheckIsRefusedUnlessParkedAndThenUnlocksAndOpensWindow`, `WelcomeHospitalityEngineTest.nothingIsUnlockedBeforeParkAndDriverCheck` |
+| 차도 쪽 문이 열리면 즉시 경고하고, 다른 모든 안내보다 우선한다 | `SignalDrivenPickupCoordinatorTest.trafficSideDoorTriggersImmediateCriticalWarning`, `WelcomeHospitalityEngineTest.trafficSideDoorWarningOverridesEverythingIncludingABuckledBelt` |
+| 벨트를 매고 문이 닫혀야 공유가 지워진다 | `SignalDrivenPickupCoordinatorTest.doorSeatBeltSequenceGreetsThenAutoShredsSession`, `WelcomeHospitalityEngineTest.shareIsBurnedOnlyWhenBeltIsBuckledAndTheDoorIsClosed` |
+| 종료하면 화면에서도 동승자 위치·승차 지점·제안이 사라진다 | `LiveMapAndSuggestionTest.sessionEndClearsPendingCardPassengerPositionPickupAndProposedSpot` |
+| 비가 오면 창문은 닫아 두고 잠금만 푼다 | `SignalDrivenPickupCoordinatorTest.rainKeepsWindowClosedButStillUnlocks`, `WelcomeHospitalityEngineTest.rainOrFreezingKeepsTheWindowShutButStillUnlocks` |
+| 운전 부하가 높으면 일반 안내를 보류하고 1.5초 안정 뒤에 말한다. 안전 경고는 즉시 통과한다 | `DrivingLoadGateTest` 8건 |
+| 접근 알림은 80 m·25 km/h·우측 방향지시등이 모두 맞을 때만 나간다 | `CurbsideCarFinderEngineTest.approachNeedsAllThreeOf80MetersSlowSpeedAndRightTurnSignal`, `MajungV2VerificationTest.turnSignalAloneFarAwayDoesNotTriggerFalseApproachAlert` |
+| 위치 신뢰도가 0.70 미만이면 거리 숫자를 숨긴다 | `CurbsideCarFinderEngineTest.confidenceOf70PercentIsTheLowestThatShowsMeters` |
+| [여기 못 서요] 세 가지가 승차 지점을 정해진 만큼 옮긴다 | `LiveMapAndSuggestionTest.cannotStop*` 4건 |
+| 동승자가 고른 자리는 수락 전까지 따로 표시되고, 수락하면 승차 지점이 된다 | `LiveMapAndSuggestionTest.pickupHereShowsProposedSpotOnCarMapUntilTheDriverAnswers`, `acceptingPickupHereMovesPickupToPassengerAndRepliesAccepted` |
+| 링크는 20분 뒤 만료되고 탑승 확인 즉시 서버에서 지워진다 | `MajungV2VerificationTest.orchestratorIssues20MinTicketAndImmediatelyShredsOnCompletion`, `relay-server/verify_e2e_sse.mjs` |
+| 차량 키나 동승자 토큰이 없으면 서버가 403으로 거부한다 | `relay-server/verify_e2e_sse.mjs` |
 
 ## 1. 6단계 흐름과 트리거 신호
 
@@ -84,7 +104,7 @@
 
 ```bash
 node relay-server/verify_e2e_sse.mjs          # 중계 서버 E2E: 좌표 필드 sanitize · VehicleFacts 통과 · PASSENGER_LOCATION/SUGGESTION · suggestion-reply · SSE · DELETE 파기
-./gradlew :app:testSimDebugUnitTest           # 유닛 테스트 35건 (운전 부하 게이트, 좌표 오프셋, 여기 못 서요 3안, 제안 수락/거절, 세션 종료 정리 포함)
+./gradlew :app:testSimDebugUnitTest           # 유닛 테스트 56건 (아래 "주장과 그것을 증명하는 테스트" 표 참고)
 ./scripts/verify_and_build_apk.sh             # 위 두 가지 + sim/pleos release APK 생성
 ```
 

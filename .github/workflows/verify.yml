@@ -1,0 +1,22 @@
+name: verify
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  relay-and-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Relay server end-to-end check
+        run: node relay-server/verify_e2e_sse.mjs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: Unit tests (sim flavor, no Pleos repository access needed)
+        run: ./gradlew --no-daemon :app:testSimDebugUnitTest
