@@ -6,47 +6,14 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import io.majung.pleos.BuildConfig
 import io.majung.pleos.audio.AndroidVehicleAudioPlatform
@@ -57,10 +24,6 @@ import io.majung.pleos.gleo.GleoActionReceiver
 import io.majung.pleos.gleo.GleoCommandBus
 import io.majung.pleos.gleo.GleoProtocolCodec
 import io.majung.pleos.model.PassengerProfile
-import io.majung.pleos.model.PickupPhase
-import io.majung.pleos.model.SeatZone
-import io.majung.pleos.orchestrator.ActiveSessionUiState
-import io.majung.pleos.orchestrator.CoordinatorTrace
 import io.majung.pleos.orchestrator.PickupEtaOrchestrator
 import io.majung.pleos.orchestrator.PickupInputs
 import io.majung.pleos.orchestrator.SafePitstopResolver
@@ -72,7 +35,6 @@ import io.majung.pleos.safety.DrivingLoadGate
 import io.majung.pleos.vehicle.AaosSpeedSource
 import io.majung.pleos.vehicle.PleosCapabilityGateway
 import io.majung.pleos.vehicle.VehicleSignalHub
-import io.majung.pleos.vehicle.VehicleSignalState
 import io.majung.pleos.welcome.PassengerWelcomeProfile
 import io.majung.pleos.welcome.WelcomeHospitalityEngine
 import kotlinx.coroutines.launch
@@ -176,6 +138,7 @@ class MainActivity : ComponentActivity() {
 
         bindCarUxRestrictions()
         registerGleoBroadcastCommands()
+        registerDebugLocationHook()
         handleIncomingGleoIntent(intent)
 
         setContent {
@@ -184,38 +147,39 @@ class MainActivity : ComponentActivity() {
             val trace by coordinator.trace.collectAsState()
             val isSim = runtimeBridge.supportsSimulatedScenario
 
-            // Pleos Connect 에뮬레이터(2560×1440 @160dpi)처럼 dp 폭이 큰 IVI에서는 1900dp 기준 레이아웃을 비례 확대해
-            // 운전석에서 읽히는 글자 크기(헤드라인 ≥ 54px)를 유지하면서 전체 흐름이 한 화면에 들어오게 한다. 1900dp 이하에서는 1:1.
+            // 화면은 Pleos Connect(2560×1440 @160dpi = 2560dp 폭) 기준으로 그리고, 더 좁은 IVI에서는 비례 축소한다.
             val configuration = LocalConfiguration.current
             val baseDensity = LocalDensity.current
-            val iviScale = (configuration.screenWidthDp / 1900f).coerceIn(1f, 1.8f)
-            CompositionLocalProvider(LocalDensity provides Density(baseDensity.density * iviScale, baseDensity.fontScale)) {
-            MajungIviScreen(
-                runtimeBadge = runtimeBridge.runtimeBadgeLabel,
-                isDrivingRestricted = isDrivingRestricted,
-                session = session,
-                signals = signals,
-                trace = trace,
-                passengerName = passengerNameInput,
-                onPassengerNameChange = { passengerNameInput = it; syncCoordinatorInputs() },
-                destinationKeyword = destinationKeywordInput,
-                onDestinationKeywordChange = { destinationKeywordInput = it },
-                plateLast4 = plateLast4Input,
-                onPlateLast4Change = { plateLast4Input = it.take(4); syncCoordinatorInputs() },
-                relayUrl = relayUrlInput,
-                onRelayUrlChange = { relayUrlInput = it; relayClient.baseUrl = it },
-                passengerReadyNote = passengerReadyNote,
-                actionNotice = actionNotice,
-                sdkCallbackLog = sdkCallbackLog,
-                onStartSessionClick = { startSixStepPickupFlow() },
-                onSurroundingsCheckedUnlockClick = { requestSurroundingsCheckedUnlock() },
-                onManualPresetClick = { preset -> lifecycleScope.launch { coordinator.applyManualOffsetPreset(preset, signalHub.state.value) } },
-                onManualCompleteClick = { lifecycleScope.launch { coordinator.manualCompleteAndShred() } },
-                showSimControls = isSim,
-                onSimDriveClick = { runtimeBridge.playSimulatedApproachAndStop { l -> runOnUiThread { sdkCallbackLog = l } } },
-                onSimBoardingClick = { runtimeBridge.playSimulatedPassengerBoarding { l -> runOnUiThread { sdkCallbackLog = l } } },
-                onSimWrongDoorClick = { runtimeBridge.playSimulatedTrafficSideDoorMistake { l -> runOnUiThread { sdkCallbackLog = l } } }
-            )
+            val k = (configuration.screenWidthDp / 2560f).coerceIn(0.55f, 1f)
+            CompositionLocalProvider(LocalDensity provides Density(baseDensity.density * k, baseDensity.fontScale)) {
+                MajungIviScreen(
+                    runtimeBadge = runtimeBridge.runtimeBadgeLabel,
+                    isDrivingRestricted = isDrivingRestricted,
+                    session = session,
+                    signals = signals,
+                    trace = trace,
+                    inputs = IviInputs(passengerNameInput, destinationKeywordInput, plateLast4Input, relayUrlInput),
+                    onInputsChange = { i ->
+                        passengerNameInput = i.passengerName
+                        destinationKeywordInput = i.destinationKeyword
+                        plateLast4Input = i.plateLast4.take(4)
+                        if (i.relayUrl != relayUrlInput) { relayUrlInput = i.relayUrl; relayClient.baseUrl = i.relayUrl }
+                        syncCoordinatorInputs()
+                    },
+                    passengerReadyNote = passengerReadyNote,
+                    actionNotice = actionNotice,
+                    sdkCallbackLog = sdkCallbackLog,
+                    onStartSession = { startSixStepPickupFlow() },
+                    onSurroundingsCheckedUnlock = { requestSurroundingsCheckedUnlock() },
+                    onCannotStop = { option -> lifecycleScope.launch { coordinator.cannotStopHere(option) } },
+                    onResolveSuggestion = { accept -> lifecycleScope.launch { coordinator.resolveSuggestion(accept) } },
+                    onEndSession = { lifecycleScope.launch { coordinator.manualCompleteAndShred() } },
+                    simControls = if (isSim) SimControls(
+                        onDrive = { runtimeBridge.playSimulatedApproachAndStop { l -> runOnUiThread { sdkCallbackLog = l } } },
+                        onBoarding = { runtimeBridge.playSimulatedPassengerBoarding { l -> runOnUiThread { sdkCallbackLog = l } } },
+                        onWrongDoor = { runtimeBridge.playSimulatedTrafficSideDoorMistake { l -> runOnUiThread { sdkCallbackLog = l } } }
+                    ) else null
+                )
             }
         }
     }
@@ -298,6 +262,12 @@ class MainActivity : ComponentActivity() {
                             )
                             sdkCallbackLog = "동승자 요청으로 기준 간판 변경됨 -> '$swapped'"
                         }
+                    },
+                    onPassengerLocation = { point, accuracyM ->
+                        runOnUiThread { orchestrator.onPassengerLocation(point, accuracyM, System.currentTimeMillis()) }
+                    },
+                    onPassengerSuggestion = { suggestion ->
+                        runOnUiThread { orchestrator.onPassengerSuggestion(suggestion) }
                     }
                 )
             }.onFailure { e ->
@@ -336,6 +306,37 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // ---- 디버그 빌드 전용: Pleos 에뮬레이터에는 FusedLocation 주입 수단이 없어, 시연·검증용으로 좌표를 adb로 넣는다.
+    //   adb shell am broadcast -a io.majung.pleos.DEBUG_LOCATION --ef lat 37.4972 --ef lng 127.0598 --ef heading 90
+    // release 빌드에는 등록되지 않는다. 실차·실 에뮬레이터 위치가 들어오면 그 값이 그대로 우선한다(같은 허브로 합쳐짐).
+    private var debugLocationReceiver: android.content.BroadcastReceiver? = null
+
+    private fun registerDebugLocationHook() {
+        if (!BuildConfig.DEBUG) return
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context?, intent: Intent?) {
+                val lat = intent?.getFloatExtra("lat", Float.NaN) ?: return
+                val lng = intent.getFloatExtra("lng", Float.NaN)
+                if (lat.isNaN() || lng.isNaN()) return
+                val heading = intent.getFloatExtra("heading", Float.NaN).takeUnless { it.isNaN() }?.toDouble()
+                signalHub.onLocationFix(
+                    io.majung.pleos.runtime.VehicleLocationReading(
+                        supported = true, latitude = lat.toDouble(), longitude = lng.toDouble(), headingDeg = heading, confidence = 0.9,
+                        rawSummary = "[DEBUG adb] location(${"%.5f".format(lat)}, ${"%.5f".format(lng)}, heading=${heading ?: "-"})"
+                    )
+                )
+            }
+        }
+        val filter = android.content.IntentFilter("io.majung.pleos.DEBUG_LOCATION")
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(receiver, filter, android.content.Context.RECEIVER_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(receiver, filter)
+        }
+        debugLocationReceiver = receiver
+    }
+
     private fun registerGleoBroadcastCommands() {
         GleoCommandBus.onServiceCommandReceived = { _, cmd ->
             runCatching {
@@ -371,6 +372,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         GleoCommandBus.onServiceCommandReceived = null
+        debugLocationReceiver?.let { runCatching { unregisterReceiver(it) } }
         speedSource?.stop()
         runtimeBridge.stopLocationUpdates()
         runtimeBridge.lowLevelHardware.unregisterTelemetryCallbacks(signalHub)
@@ -386,299 +388,5 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val REQ_CAR_SPEED = 0x5EED
-    }
-}
-
-// =====================================================================================================
-// IVI 화면 (Pleos ccNC 다크 언어 · 17" 가로 기준, 12.9"에서도 세로 스크롤로 동작)
-// =====================================================================================================
-
-private val T = MajungTokens
-
-@Composable
-fun MajungIviScreen(
-    runtimeBadge: String,
-    isDrivingRestricted: Boolean,
-    session: ActiveSessionUiState,
-    signals: VehicleSignalState,
-    trace: CoordinatorTrace,
-    passengerName: String,
-    onPassengerNameChange: (String) -> Unit,
-    destinationKeyword: String,
-    onDestinationKeywordChange: (String) -> Unit,
-    plateLast4: String,
-    onPlateLast4Change: (String) -> Unit,
-    relayUrl: String,
-    onRelayUrlChange: (String) -> Unit,
-    passengerReadyNote: String?,
-    actionNotice: String?,
-    sdkCallbackLog: String,
-    onStartSessionClick: () -> Unit,
-    onSurroundingsCheckedUnlockClick: () -> Unit,
-    onManualPresetClick: (ManualOffsetPreset) -> Unit,
-    onManualCompleteClick: () -> Unit,
-    showSimControls: Boolean,
-    onSimDriveClick: () -> Unit,
-    onSimBoardingClick: () -> Unit,
-    onSimWrongDoorClick: () -> Unit
-) {
-    val facts = session.vehicleFacts
-    val target = session.currentStop?.targetSeat ?: SeatZone.ROW_1_RIGHT
-    val trafficDoorOpen = signals.isDoorOpen(SeatZone.ROW_2_LEFT)
-
-    val (headline, subline, heroTone) = when {
-        trafficDoorOpen -> Triple("차도 쪽 문이 열렸습니다", "후방 이륜차·차량 접근 위험. 인도 쪽 오른쪽 문을 이용해 주세요.", T.Danger)
-        session.phase == PickupPhase.IDLE -> Triple("${passengerName.ifBlank { "동승자" }}님 마중 준비", "기준 간판을 정하고 일회성 안심 링크를 보내면 시작됩니다.", T.HyundaiBlue)
-        session.phase == PickupPhase.STEP1_LANDMARK_AGREED -> Triple("'${session.activeTicket?.landmarkSignboard}'로 이동 중", "접근하면 동승자에게 자동으로 알립니다.", T.HyundaiBlue)
-        session.phase == PickupPhase.STEP2_APPROACHING -> Triple("정차 지점 접근 중", session.lastBannerMessage, T.ActiveBlue)
-        session.phase == PickupPhase.STEP4_CURBSIDE_STOPPED && !signals.stoppedInPark -> Triple("정차 후 P단으로 바꿔 주세요", "P단이 확인되어야 동승자에게 '지금 타도 돼요'가 전달됩니다.", T.Warning)
-        session.phase == PickupPhase.STEP4_CURBSIDE_STOPPED -> Triple("P단 정차 확인", "사이드미러로 후방을 확인한 뒤 승차 맞이를 눌러 주세요.", T.ActiveBlue)
-        session.phase == PickupPhase.STEP5_BOARDING_WELCOME && signals.isSeated(target) -> Triple("${passengerName.ifBlank { "동승자" }}님, 반갑습니다.", "문 닫힘과 안전벨트가 확인되면 공유가 자동으로 종료됩니다.", T.Success)
-        session.phase == PickupPhase.STEP5_BOARDING_WELCOME -> Triple("승차 맞이 중", "조수석 잠금 해제 · 창문 ${trace.windowPercent}% · 동승자가 타는 것을 기다립니다.", T.ActiveBlue)
-        else -> Triple("탑승 완료 · 공유 종료", session.lastBannerMessage, T.Success)
-    }
-
-    Surface(modifier = Modifier.fillMaxSize(), color = T.Canvas) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 32.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            // 상단 바: 앱명 · 출처 배지 · 단계 스테퍼
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("마중", color = T.Ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                    Text("MAJUNG", color = T.Muted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    Chip(runtimeBadge, if (runtimeBadge.contains("SDK")) T.ActiveBlue else T.Muted)
-                    if (isDrivingRestricted) Chip("주행 중 · 입력 제한", T.Warning)
-                }
-                PhaseStepper(session.phase)
-            }
-
-            // 상단 두 카드는 높이를 고정한다: 상태 문구·공조 메모가 늘어나도 아래 버튼 행의 위치가 움직이지 않아야
-            // 운전자가 보지 않고도 같은 자리를 누를 수 있다(주행 중 터치 안정성).
-            Row(modifier = Modifier.fillMaxWidth().height(440.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                // 좌: 히어로 상태 카드
-                Column(
-                    modifier = Modifier
-                        .weight(1.35f)
-                        .fillMaxHeight()
-                        .background(if (heroTone == T.Success && session.phase == PickupPhase.STEP5_BOARDING_WELCOME) T.Sand else T.Surface, RoundedCornerShape(28.dp))
-                        .border(1.dp, T.Hairline, RoundedCornerShape(28.dp))
-                        .padding(28.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    val onSand = heroTone == T.Success && session.phase == PickupPhase.STEP5_BOARDING_WELCOME
-                    Box(modifier = Modifier.size(width = 56.dp, height = 6.dp).background(heroTone, CircleShape))
-                    Text(headline, color = if (onSand) T.SandInk else T.Ink, fontSize = 40.sp, fontWeight = FontWeight.Bold, lineHeight = 46.sp, maxLines = 2)
-                    Text(subline, color = if (onSand) T.SandInk.copy(alpha = 0.7f) else T.Muted, fontSize = 18.sp, lineHeight = 26.sp, maxLines = 3)
-                    Spacer(Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Chip("번호판 끝 ${plateLast4.ifBlank { "----" }}", T.Ink, filled = true)
-                        Chip(session.activeTicket?.vehicleModelLabel ?: "차종 확인 중", T.Muted)
-                        session.activeTicket?.let { Chip("기준 간판 · ${it.landmarkSignboard}", T.Muted) }
-                    }
-                    if (passengerReadyNote != null) {
-                        Text("동승자: $passengerReadyNote", color = T.ActiveBlue, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    if (actionNotice != null) {
-                        Text(actionNotice, color = T.Warning, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
-
-                // 우: 차량 신호 패널 — "차만 아는 사실"
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .background(T.Surface, RoundedCornerShape(28.dp))
-                        .border(1.dp, T.Hairline, RoundedCornerShape(28.dp))
-                        .padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("차량 신호", color = T.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        BigStat("기어", signals.gear.name, if (signals.gear.name == "P") T.Success else T.Ink)
-                        BigStat("차속", "${signals.speedKmh.toInt()}", T.Ink, unit = "km/h")
-                        BigStat("거리", facts.distanceBucketMeters?.let { "$it" } ?: "—", T.Ink, unit = "m")
-                    }
-                    SignalRow("P단 정차", signals.stoppedInPark, okText = "확인", pendingText = "대기")
-                    SignalRow("방향지시등", signals.turnSignal.name != "OFF", okText = signals.turnSignal.name, pendingText = "OFF", neutral = true)
-                    SignalRow("조수석 문", signals.isDoorOpen(target), okText = "열림", pendingText = "닫힘", neutral = true)
-                    SignalRow("차도쪽 문(2열 좌)", trafficDoorOpen, okText = "열림 · 경고", pendingText = "닫힘", danger = true)
-                    SignalRow("착좌", signals.isSeated(target), okText = "감지", pendingText = "비어 있음")
-                    SignalRow("안전벨트", signals.isBuckled(target), okText = "체결", pendingText = "미체결")
-                    SignalRow("하향등 · 다음 회전", signals.lowBeamOn, okText = "야간" + (if (signals.nextTurnDistanceMeters != Int.MAX_VALUE) " · ${signals.nextTurnDistanceMeters}m" else ""), pendingText = "주간" + (if (signals.nextTurnDistanceMeters != Int.MAX_VALUE) " · ${signals.nextTurnDistanceMeters}m" else ""), neutral = true)
-                    if (trace.cabinNote != null) Text(trace.cabinNote, color = T.ActiveBlue, fontSize = 12.sp)
-                    Text("속도 출처 ${signals.speedSource.name.lowercase()} · 이벤트 ${signals.eventCount}건 · ${signals.lastEventLog}", color = T.Muted, fontSize = 12.sp)
-                }
-            }
-
-            // 입력 행 (주행 제한 시 숨김)
-            if (!isDrivingRestricted) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DarkField(passengerName, onPassengerNameChange, "동승자 호칭", Modifier.weight(0.8f))
-                    DarkField(destinationKeyword, onDestinationKeywordChange, "픽업 장소·간판", Modifier.weight(1.3f))
-                    DarkField(plateLast4, onPlateLast4Change, "번호판 끝 4자리", Modifier.weight(0.7f))
-                    DarkField(relayUrl, onRelayUrlChange, "동승자 웹 중계 서버", Modifier.weight(1.3f))
-                }
-            }
-
-            // 액션 행: 자동 흐름에서 운전자가 누르는 것은 두 개뿐
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                PrimaryButton("1 · 픽업 시작 · 링크 발급", enabled = !session.isSessionActive, onClick = onStartSessionClick, modifier = Modifier.weight(1f))
-                PrimaryButton(
-                    "주변 확인 완료 · 승차 맞이",
-                    enabled = session.isSessionActive && signals.stoppedInPark && !trace.driverUnlocked,
-                    onClick = onSurroundingsCheckedUnlockClick,
-                    modifier = Modifier.weight(1f),
-                    tone = T.ActiveBlue
-                )
-                SecondaryButton("탑승 확인 · 종료 (센서 미지원 시)", enabled = session.isSessionActive, onClick = onManualCompleteClick, modifier = Modifier.weight(1f))
-            }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("위치 오차 시 직접 지정", color = T.Muted, fontSize = 14.sp, modifier = Modifier.align(Alignment.CenterVertically))
-                ManualOffsetPreset.entries.forEach { p ->
-                    SecondaryButton(p.labelKo, enabled = session.isSessionActive && signals.stoppedInPark, onClick = { onManualPresetClick(p) }, modifier = Modifier.weight(1f))
-                }
-            }
-
-            if (showSimControls) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("시뮬레이션", color = T.Warning, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.align(Alignment.CenterVertically))
-                    SecondaryButton("주행 → 간판 앞 P단 정차", enabled = session.isSessionActive, onClick = onSimDriveClick, modifier = Modifier.weight(1f))
-                    SecondaryButton("동승자 탑승(문·착좌·벨트)", enabled = session.phase == PickupPhase.STEP5_BOARDING_WELCOME, onClick = onSimBoardingClick, modifier = Modifier.weight(1f))
-                    SecondaryButton("차도 쪽 문 잘못 열림", enabled = session.isSessionActive, onClick = onSimWrongDoorClick, modifier = Modifier.weight(1f))
-                }
-            }
-
-            // 인스펙터: SDK 콜백 / 자동 판단 로그
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(T.SurfaceRaised, RoundedCornerShape(18.dp))
-                    .border(1.dp, T.Hairline, RoundedCornerShape(18.dp))
-                    .padding(horizontal = 18.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text("자동 판단  ${trace.line}", color = T.Ink, fontSize = 13.sp)
-                Text("SDK/중계  $sdkCallbackLog", color = T.Muted, fontSize = 12.sp)
-                Text("공유 링크  ${session.activeTicket?.shareUrl ?: "세션 시작 시 생성 (최대 20분, 탑승 확인 즉시 파기)"}", color = T.Muted, fontSize = 12.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun PhaseStepper(phase: PickupPhase) {
-    val labels = listOf("합의", "접근", "정차", "맞이", "종료")
-    val idx = when (phase) {
-        PickupPhase.IDLE -> -1
-        PickupPhase.STEP1_LANDMARK_AGREED -> 0
-        PickupPhase.STEP2_APPROACHING, PickupPhase.STEP3_VEHICLE_IDENTIFIED -> 1
-        PickupPhase.STEP4_CURBSIDE_STOPPED -> 2
-        PickupPhase.STEP5_BOARDING_WELCOME -> 3
-        PickupPhase.STEP6_COMPLETED_SHREDDED -> 4
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        labels.forEachIndexed { i, l ->
-            val active = i <= idx
-            Box(
-                modifier = Modifier
-                    .background(if (active) T.ActiveBlue else T.Surface, CircleShape)
-                    .border(1.dp, if (active) T.ActiveBlue else T.Hairline, CircleShape)
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
-            ) {
-                Text("${i + 1} $l", color = if (active) T.Canvas else T.Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
-}
-
-@Composable
-private fun Chip(text: String, tone: Color, filled: Boolean = false) {
-    Box(
-        modifier = Modifier
-            .background(if (filled) tone else Color.Transparent, CircleShape)
-            .border(1.dp, if (filled) tone else T.Hairline, CircleShape)
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-    ) {
-        Text(text, color = if (filled) T.Canvas else tone, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun BigStat(label: String, value: String, tone: Color, unit: String? = null) {
-    Column(
-        modifier = Modifier
-            .background(T.SurfaceRaised, RoundedCornerShape(16.dp))
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-    ) {
-        Text(label, color = T.Muted, fontSize = 12.sp)
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(value, color = tone, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            if (unit != null) Text(unit, color = T.Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 5.dp))
-        }
-    }
-}
-
-@Composable
-private fun SignalRow(label: String, on: Boolean, okText: String, pendingText: String, neutral: Boolean = false, danger: Boolean = false) {
-    val tone = when {
-        on && danger -> T.Danger
-        on && neutral -> T.ActiveBlue
-        on -> T.Success
-        else -> T.Muted
-    }
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = T.Ink, fontSize = 15.sp)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(modifier = Modifier.size(10.dp).background(tone, CircleShape))
-            Text(if (on) okText else pendingText, color = tone, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-@Composable
-private fun DarkField(value: String, onChange: (String) -> Unit, label: String, modifier: Modifier) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onChange,
-        label = { Text(label, color = T.Muted) },
-        singleLine = true,
-        modifier = modifier,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = T.Ink, unfocusedTextColor = T.Ink,
-            focusedBorderColor = T.ActiveBlue, unfocusedBorderColor = T.Hairline,
-            cursorColor = T.ActiveBlue
-        )
-    )
-}
-
-@Composable
-private fun PrimaryButton(label: String, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, tone: Color = T.Ink) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(18.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = tone, contentColor = T.Canvas, disabledContainerColor = T.SurfaceRaised, disabledContentColor = T.Muted),
-        modifier = modifier.heightIn(min = 60.dp)
-    ) {
-        Text(label, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun SecondaryButton(label: String, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    OutlinedButton(
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(18.dp),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = T.Ink, disabledContentColor = T.Muted),
-        modifier = modifier.heightIn(min = 56.dp)
-    ) {
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
     }
 }

@@ -1,0 +1,15 @@
+11-14 15:27:36.660 10014 10014 I MajungHub: [DEBUG adb] location(37.49880, 127.05779, heading=90.0)
+11-14 15:27:38.232 10014 10014 I MajungFlow: 새 픽업 세션 · 자동 흐름 초기화
+11-14 15:27:52.689 10014 10014 I MajungHub: [DEBUG adb] location(37.49880, 127.05870, heading=90.0)
+11-14 15:28:05.582 10014 10014 I MajungHub: [DEBUG adb] location(37.49880, 127.05949, heading=90.0)
+11-14 15:28:08.719 10014 10014 I MajungHub: [DEBUG adb] location(37.49880, 127.06017, heading=90.0)
+11-14 15:28:18.929 10014 10014 I MajungHub: [DEBUG adb] location(37.49881, 127.06108, heading=90.0)
+11-14 15:28:19.049 10014 10014 I MajungFlow: 접근 감지 · 반경 60m 감속 + 우측 방향지시등 진입 감지 · 공조 제어 미지원 트림
+11-14 15:28:23.042 10014 10014 I MajungHub: [DEBUG adb] location(37.49881, 127.06176, heading=90.0)
+11-14 15:28:23.268 10014 10014 I MajungFlow: P단 정차 확정 (0m) · [DEBUG adb] location(37.49881, 127.06176, heading=90.0)
+11-14 15:28:30.866 10014 29132 I MajungFlow: door.setDoorLock(ROW_1_LEFT+ROW_1_RIGHT+ROW_2_LEFT+ROW_2_RIGHT, value=false) -> onComplete(locked=false)
+11-14 15:28:30.867 10014 10014 I MajungFlow: 주변 확인 완료 · 도어 잠금 해제 · 조수석 창문 25% 개방
+11-14 15:28:30.879 10014 29132 I MajungFlow: window.setWindowPosition(ROW_1_RIGHT, raw=2 of 0..10) -> onComplete(20%)
+11-14 15:28:35.893 10014 10037 I MajungFlow: light.setReadingLightSwitch(ROW_1_RIGHT, ON) -> onComplete(ON)
+11-14 15:28:39.958 10014 10014 I MajungFlow: 착좌 감지 → 환대 인사: 지수님, 반갑습니다.
+11-14 15:28:48.084 10014 10014 I MajungFlow: 수동 탑승 확인 → 창문·조명·공조 원복 · 세션 즉시 파기

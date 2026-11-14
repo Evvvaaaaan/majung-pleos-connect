@@ -3,6 +3,8 @@ package io.majung.pleos.orchestrator
 import io.majung.pleos.audio.AudioFocusCoordinator
 import io.majung.pleos.finder.CurbsideCarFinderEngine
 import io.majung.pleos.finder.ManualOffsetPreset
+import io.majung.pleos.model.CannotStopOption
+import io.majung.pleos.model.GeoPoint
 import io.majung.pleos.model.PassengerProfile
 import io.majung.pleos.model.PickupPhase
 import io.majung.pleos.model.SeatZone
@@ -127,6 +129,11 @@ class SignalDrivenPickupCoordinator(
             signalSource = signalSourceBadge
         )
         orchestrator.updateVehicleFacts(facts)
+        state.location?.let { loc ->
+            val lat = loc.latitude
+            val lng = loc.longitude
+            if (lat != null && lng != null) orchestrator.updateCarLocation(GeoPoint(lat, lng), loc.headingDeg, now)
+        }
 
         if (session.isSessionActive && stop != null) {
             handleApproachAndStop(state, stop, distance, now)
@@ -160,6 +167,16 @@ class SignalDrivenPickupCoordinator(
         val note = if (latest.wiperOn) "우천(와이퍼 작동) 감지 — 창문 개방 생략, 도어 잠금만 해제" else "도어 잠금 해제 · 조수석 창문 25% 개방"
         publishTrace("주변 확인 완료 · $note")
         Result.success(note)
+    }
+
+    /** "여기 못 세워요" 대안 적용 (앞으로 30 m / 건너편 U턴 / 한 바퀴). 세션이 없으면 false. */
+    suspend fun cannotStopHere(option: CannotStopOption): Boolean = mutex.withLock {
+        orchestrator.applyCannotStopOption(option, clock())
+    }
+
+    /** 동승자 제안 수락/거절 */
+    suspend fun resolveSuggestion(accept: Boolean) = mutex.withLock {
+        orchestrator.resolvePendingSuggestion(accept)
     }
 
     /** 착좌·벨트 센서가 없는 트림용 수동 종료. 창문·조명을 원복하고 세션을 즉시 파기한다. */

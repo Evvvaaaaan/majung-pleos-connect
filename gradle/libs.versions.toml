@@ -8,6 +8,7 @@ composeBom = "2024.10.01"
 coroutines = "1.9.0"
 okhttp = "4.12.0"
 json = "20240303"
+osmdroid = "6.1.20"
 junit = "4.13.2"
 
 # Pleos Connect Official SDK Baseline (API 34 Pleos Connect System Image / Cold Boot / RAM 4GB)
@@ -33,6 +34,7 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-sse = { group = "com.squareup.okhttp3", name = "okhttp-sse", version.ref = "okhttp" }
+osmdroid-android = { group = "org.osmdroid", name = "osmdroid-android", version.ref = "osmdroid" }
 org-json = { group = "org.json", name = "json", version.ref = "json" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 

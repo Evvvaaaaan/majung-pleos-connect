@@ -16,8 +16,8 @@ android {
         // 공식 시작하기 가이드 필수 조건: minSdk API 28 이상
         minSdk = 28
         targetSdk = 34
-        versionCode = 210
-        versionName = "2.1.0"
+        versionCode = 300
+        versionName = "3.0.0"
 
         // 에뮬레이터(Pleos Connect AVD / 표준 AVD)에서 호스트 PC의 relay-server(8080 포트)로 즉시 연결되는 기본 주소
         buildConfigField("String", "DEFAULT_RELAY_URL", "\"http://10.0.2.2:8080\"")
@@ -86,6 +86,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
     implementation(libs.okhttp.sse)
+    implementation(libs.osmdroid.android)
 
     // 공식 가이드 기준 Pleos Connect SDK 의존성 (pleos flavor 전용)
     // - implementation("ai.pleos.playground:Vehicle:2.3.2")

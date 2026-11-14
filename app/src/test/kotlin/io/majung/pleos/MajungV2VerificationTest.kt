@@ -9,6 +9,7 @@ import io.majung.pleos.finder.ManualOffsetPreset
 import io.majung.pleos.finder.PleosTurnSignalState
 import io.majung.pleos.gleo.GleoProtocolCodec
 import io.majung.pleos.model.BoardingDetectionMode
+import io.majung.pleos.model.LiveMapState
 import io.majung.pleos.model.LocationReliability
 import io.majung.pleos.model.PassengerProfile
 import io.majung.pleos.model.PickupPhase
@@ -108,9 +109,11 @@ class MajungV2VerificationTest {
                 phase: PickupPhase,
                 boardingDoorUnlocked: Boolean,
                 welcomeGreetingActive: Boolean,
-                facts: VehicleFacts
+                facts: VehicleFacts,
+                liveMap: LiveMapState
             ): Boolean = true
 
+            override suspend fun replySuggestion(sessionId: String, suggestionId: String, accepted: Boolean) = true
             override suspend fun sendKidsFallbackSms(stop: SafePitstopStop, smsBody: String): Boolean = true
             override suspend fun shredEphemeralSession(sessionId: String): Boolean {
                 shreddedId = sessionId

@@ -111,7 +111,7 @@ data class SafePitstopStop(
  * 일회성 픽업 공유 티켓 (개정안_v2 통일 규칙 반영):
  * - 기본 수명: 탑승 완료 또는 운전자 수동 종료 시 서버 메모리에서 즉시(DELETE) 파기
  * - 미종료 방치 시 최대 자동 만료(Max TTL): 발급 후 20분(1,200,000ms)
- * - 동승자 단말 원시 GPS 미수집(collectPassengerGps = false 고정)
+ * - 동승자 위치는 브라우저 권한 동의(opt-in) 시에만 세션 메모리에 보관되며 세션과 함께 파기
  */
 data class PickupSessionShareTicket(
     val sessionId: String,
@@ -165,4 +165,32 @@ data class CabinActuatorSnapshot(
     val hvacTempCelsiusByZone: Map<SeatZone, Float>,
     val seatHeaterLevelByZone: Map<SeatZone, Int>,
     val ambientArgbByZone: Map<SeatZone, Int>
+)
+
+data class GeoPoint(val lat: Double, val lng: Double)
+
+/** 차량·동승자·픽업 지점의 지도용 위치. 세션 메모리에만 존재하며 세션 종료 시 함께 파기된다. */
+data class LiveMapState(
+    val car: GeoPoint? = null, val carHeadingDeg: Double? = null, val carUpdatedAtMs: Long? = null,
+    val passenger: GeoPoint? = null, val passengerAccuracyM: Double? = null, val passengerUpdatedAtMs: Long? = null,
+    val pickup: GeoPoint? = null, val pickupLabel: String = "", val pickupNote: String? = null, val pickupVersion: Int = 0
+)
+
+/** 운전자가 "여기 못 세워요"를 눌렀을 때의 대안 */
+enum class CannotStopOption(val labelKo: String) {
+    AHEAD_30M("앞으로 30 m"),
+    OTHER_SIDE_UTURN("건너편에서 (U턴)"),
+    LOOP_AROUND("한 바퀴 돌고 올게요")
+}
+
+enum class SuggestionKind { PICKUP_HERE, OTHER_SIDE, WAIT_MINUTES, READY }
+
+/** 동승자 웹에서 원탭으로 보낸 제안 */
+data class PassengerSuggestion(
+    val id: String,
+    val kind: SuggestionKind,
+    val text: String,
+    val point: GeoPoint?,
+    val minutes: Int?,
+    val atMs: Long
 )

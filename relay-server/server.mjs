@@ -3,14 +3,17 @@
  * 마중(MAJUNG) v2.0 — 무의존성 실시간 SSE & 일회성 안심 웹 중계 서버 (Node.js 18+)
  * 실행: PORT=8080 node relay-server/server.mjs
  *
- * [개정안_v2 개인정보·토큰 정책 100% 반영]
- * 1) 동승자 단말의 원시 GPS(latitude, longitude, gps, passengerLat 등) 수집·저장 원천 차단
+ * [개정안_v2 개인정보·토큰 정책 반영 — v2.2: 상호 위치 지도]
+ * 1) 동승자 위치는 브라우저 권한 동의(opt-in)로만 전송되며(POST .../passenger-location), 세션 메모리에만 보관한다.
+ *    디스크·로그에 기록하지 않고 세션 파기(DELETE / 20분 TTL)와 함께 사라진다. 차량 위치(carLat/carLng)도 동일.
+ *    그 외 임의의 좌표 필드(latitude, longitude, passengerCoordinates 등)는 sanitize에서 여전히 버린다.
  * 2) 탑승 확인 완료 또는 운전자 수동 종료(DELETE /api/v1/sessions/:id) 시 메모리에서 즉시 파기 및 SSE SESSION_SHREDDED 송출
  * 3) 종료 누락 방치 시에도 발급 시점 기준 최대 20분(1,200,000ms) 경과 시 자동 만료 파기
  */
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -21,16 +24,36 @@ const WEB_HTML_PATH = path.resolve(__dirname, "../web-companion/index.html");
 /** @type {Map<string, { state: any, subscribers: Set<http.ServerResponse>, timer: NodeJS.Timeout }>} */
 const ephemeralSessions = new Map();
 
+const PASSENGER_LOCATION_MIN_INTERVAL_MS = 500;
+const SUGGESTION_KINDS = ["PICKUP_HERE", "OTHER_SIDE", "WAIT_MINUTES", "READY"];
+
+function sendJson(res, status, obj) {
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(obj));
+}
+
+function broadcast(entry, event, data) {
+  const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const sub of entry.subscribers) sub.write(msg);
+}
+
 function sanitizeIncomingPayload(rawPayload) {
   if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) return {};
   const safeFields = {};
   const strings = ["passengerName", "pitstopName", "landmarkSignboard", "vehicleModelLabel",
     "plateLast4", "offsetGuideText", "locationReliability", "runtimeSourceBadge", "phase", "gear", "signalSource"];
-  const numbers = ["walkingMetersWithoutCrossing", "remainingSeconds", "issuedAtEpochMs", "speedBucketKmh"];
+  const shortStrings = ["pickupLabel", "pickupNote", "suggestionReplyId"]; // 80자 상한
+  const numbers = ["walkingMetersWithoutCrossing", "remainingSeconds", "issuedAtEpochMs", "speedBucketKmh",
+    "carLat", "carLng", "carHeadingDeg", "carUpdatedAtEpochMs", "pickupLat", "pickupLng"];
   // 차량 신호 요약(VehicleFacts). 차량의 원시 좌표는 받지 않고, 버킷화된 거리(10m 단위)만 통과시킨다.
   const booleans = ["boardingDoorUnlocked", "welcomeGreetingActive",
     "stoppedInPark", "trafficSideDoorOpen", "passengerDoorOpen", "passengerSeated", "passengerBuckled"];
   for (const key of strings) if (typeof rawPayload[key] === "string") safeFields[key] = rawPayload[key];
+  for (const key of shortStrings) if (typeof rawPayload[key] === "string") safeFields[key] = rawPayload[key].slice(0, 80);
+  if (Number.isInteger(rawPayload.pickupVersion)) safeFields.pickupVersion = rawPayload.pickupVersion;
+  if (rawPayload.suggestionReply === "ACCEPTED" || rawPayload.suggestionReply === "DECLINED") {
+    safeFields.suggestionReply = rawPayload.suggestionReply;
+  }
   for (const key of numbers) if (typeof rawPayload[key] === "number" && Number.isFinite(rawPayload[key])) safeFields[key] = rawPayload[key];
   for (const key of booleans) if (typeof rawPayload[key] === "boolean") safeFields[key] = rawPayload[key];
   if (rawPayload.offsetMeters === null || (typeof rawPayload.offsetMeters === "number" && Number.isFinite(rawPayload.offsetMeters))) {
@@ -42,7 +65,6 @@ function sanitizeIncomingPayload(rawPayload) {
   if (Array.isArray(rawPayload.candidateSignboards)) {
     safeFields.candidateSignboards = rawPayload.candidateSignboards.filter((value) => typeof value === "string");
   }
-  safeFields.collectPassengerGps = false;
   return safeFields;
 }
 
@@ -68,7 +90,7 @@ function upsertSession(sessionId, payload) {
         sessionId,
         createdAtEpochMs: now,
         maxExpiresAtEpochMs: now + MAX_SESSION_TTL_MS,
-        collectPassengerGps: false,
+        passengerLocationOptIn: true,
       },
       subscribers: new Set(),
       timer: setTimeout(() => shredSession(sessionId, "TTL_20MIN_EXPIRED"), MAX_SESSION_TTL_MS),
@@ -131,7 +153,7 @@ export function createMajungRelayServer() {
           ok: true,
           activeSessionCount: ephemeralSessions.size,
           maxTtlMinutes: 20,
-          collectPassengerGps: false,
+          passengerLocationOptIn: true,
         })
       );
       return;
@@ -243,6 +265,78 @@ export function createMajungRelayServer() {
       } catch {
         res.writeHead(400);
         res.end();
+      }
+      return;
+    }
+
+    // 4-1) 동승자 위치 공유(opt-in, 브라우저 권한) — 세션 메모리에만 보관 (/api/v1/sessions/:id/passenger-location)
+    const locMatch = url.pathname.match(/^\/api\/v1\/sessions\/([^/]+)\/passenger-location$/);
+    if (req.method === "POST" && locMatch) {
+      const entry = ephemeralSessions.get(decodeURIComponent(locMatch[1]));
+      if (!entry) return sendJson(res, 404, { error: "SESSION_SHREDDED" });
+      try {
+        const body = await readJsonBody(req);
+        if (!Number.isFinite(body.lat) || !Number.isFinite(body.lng)) return sendJson(res, 400, { error: "INVALID_LOCATION" });
+        const now = Date.now();
+        if (now - (entry.lastPassengerLocationAt || 0) < PASSENGER_LOCATION_MIN_INTERVAL_MS) {
+          return sendJson(res, 200, { accepted: false, throttled: true });
+        }
+        entry.lastPassengerLocationAt = now;
+        const accuracyM = Number.isFinite(body.accuracyM) ? body.accuracyM : null;
+        Object.assign(entry.state, {
+          passengerLat: body.lat, passengerLng: body.lng, passengerAccuracyM: accuracyM, passengerUpdatedAtEpochMs: now,
+        });
+        broadcast(entry, "PASSENGER_LOCATION", { lat: body.lat, lng: body.lng, accuracyM, updatedAtEpochMs: now });
+        broadcast(entry, "STATE_UPDATE", entry.state);
+        sendJson(res, 200, { accepted: true });
+      } catch {
+        sendJson(res, 400, { error: "INVALID_JSON" });
+      }
+      return;
+    }
+
+    // 4-2) 동승자 원탭 제안 (/api/v1/sessions/:id/suggest)
+    const suggestMatch = url.pathname.match(/^\/api\/v1\/sessions\/([^/]+)\/suggest$/);
+    if (req.method === "POST" && suggestMatch) {
+      const entry = ephemeralSessions.get(decodeURIComponent(suggestMatch[1]));
+      if (!entry) return sendJson(res, 404, { error: "SESSION_SHREDDED" });
+      try {
+        const body = await readJsonBody(req);
+        if (!SUGGESTION_KINDS.includes(body.kind)) return sendJson(res, 400, { error: "INVALID_KIND" });
+        const num = (v) => (Number.isFinite(v) ? v : null);
+        const suggestion = {
+          id: crypto.randomBytes(4).toString("hex"),
+          kind: body.kind,
+          text: String(body.text || "").slice(0, 80),
+          lat: num(body.lat),
+          lng: num(body.lng),
+          minutes: num(body.minutes),
+          atEpochMs: Date.now(),
+        };
+        entry.state.passengerSuggestion = suggestion;
+        broadcast(entry, "PASSENGER_SUGGESTION", suggestion);
+        broadcast(entry, "STATE_UPDATE", entry.state);
+        sendJson(res, 200, { delivered: true, id: suggestion.id });
+      } catch {
+        sendJson(res, 400, { error: "INVALID_JSON" });
+      }
+      return;
+    }
+
+    // 4-3) 차량의 제안 응답 (/api/v1/sessions/:id/suggestion-reply)
+    const replyMatch = url.pathname.match(/^\/api\/v1\/sessions\/([^/]+)\/suggestion-reply$/);
+    if (req.method === "POST" && replyMatch) {
+      const entry = ephemeralSessions.get(decodeURIComponent(replyMatch[1]));
+      if (!entry) return sendJson(res, 404, { error: "SESSION_SHREDDED" });
+      try {
+        const body = await readJsonBody(req);
+        if (typeof body.id !== "string" || typeof body.accepted !== "boolean") return sendJson(res, 400, { error: "INVALID_REPLY" });
+        entry.state.suggestionReplyId = body.id.slice(0, 80);
+        entry.state.suggestionReply = body.accepted ? "ACCEPTED" : "DECLINED";
+        broadcast(entry, "STATE_UPDATE", entry.state);
+        sendJson(res, 200, { ok: true });
+      } catch {
+        sendJson(res, 400, { error: "INVALID_JSON" });
       }
       return;
     }

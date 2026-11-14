@@ -1,0 +1,903 @@
+<title>마중 디자인 3안</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="지도 중심으로 단순화한 마중 IVI 화면과 동승자 웹의 세 가지 디자인 방향 비교">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@400;500;800&family=Host+Grotesk:wght@400;500&family=Geist+Mono:wght@400;500&family=Schibsted+Grotesk:wght@700&family=Instrument+Sans:wght@400;500&family=DM+Mono:wght@400;500&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Hallmark · v2.0.0 · shape: app screen · genre: modern-minimal · themes: Wayfind (dealt 1/3, seed in-vehicle-pickup-app-hyundai-4479·c102ac6e·2026-11-14·r0), Rim station (dealt 2/3), Dose (dealt 3/3) · brand: Hyundai (spec 2026-11-14, primary #002c5f → hue 258) · host: Pleos Connect v2.1.0 launcher capture (light day paper, black plates, square corners) · modes: day+night · deal: theme.mjs */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: E, three token sets on one sheet; answered by one shared frame grammar and one control recipe per direction */
+/* Hallmark · waive 64 · --font-outlier is Geist Mono and direction A sets --d-font to Chivo Mono; the mono text is figures (320 m, 12 m, 4568) and the board face · direction A is the Wayfind signage board, where Chivo Mono figures such as the plate 4568 and the distance 320 m are the material itself */
+/* Hallmark · waive 37 · font slot: direction B's --d-font names Switzer with Host Grotesk standing in; direction C carries Schibsted Grotesk, Instrument Sans and DM Mono as one theme · direction B draws Switzer through its stand-in Host Grotesk and says so in its notes, while direction C keeps the three faces of Dose */
+/* Hallmark · waive 47b · six phone frames, each holding the built passenger screen in a different state, with no drawn bezel · the six phone frames compare the same passenger screen across Wayfind, Rim and Dose, two states for each direction */
+/* Hallmark · waive 39b · the IVI buttons are 76px on a 1280px canvas that stands for the 2560px Pleos screen; the sheet chrome keeps 32px controls with a 44px hit target · the IVI buttons stand for the controls a driver presses on the Pleos screen without looking, sized like the launcher's black search plate */
+/* Hallmark · answered F19 · three directions carry three type voices on one sheet (Chivo Mono 800, Host Grotesk 500, Schibsted Grotesk 700); each direction alone uses three weights */
+/* Hallmark · answered F23 · the artifact host supplies html, head and lang; the title and description sit in the first lines of the file */
+/* Layout: a comparison sheet; one shared frame grammar (IVI 16:9 at 1280×720, phone 390×780) rendered three times with three token sets, scaled to the column by a ResizeObserver. */
+:root {
+  --color-paper: oklch(97% 0.006 258); --color-paper-2: oklch(93.5% 0.008 258); --color-paper-3: oklch(99.4% 0.004 258);
+  --color-ink: oklch(18% 0.03 258); --color-ink-2: oklch(34% 0.03 258); --color-muted: oklch(50% 0.03 258);
+  --color-rule: oklch(84% 0.012 258); --color-accent: oklch(44% 0.17 258); --color-accent-ink: oklch(99% 0.004 258); --color-focus: oklch(50% 0.2 258);
+  --font-display: "Host Grotesk", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Noto Sans KR", "Host Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-outlier: "Geist Mono", ui-monospace, monospace;
+  --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px;
+  --text-sm: 0.875rem; --text-md: 1rem; --text-lead: 1.1875rem; --text-title: 1.375rem; --text-section: 1.75rem; --text-display: 2.5rem;
+  --radius-card: 2px; --dur-micro: 120ms; --dur-short: 220ms; --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --z-raised: 10; --z-modal: 400;
+  --container: 1120px; --gutter: max(16px, env(safe-area-inset-left, 0px)); --gutter-r: max(16px, env(safe-area-inset-right, 0px));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-paper: oklch(15% 0.02 258); --color-paper-2: oklch(19% 0.022 258); --color-paper-3: oklch(23% 0.024 258);
+    --color-ink: oklch(94% 0.01 258); --color-ink-2: oklch(84% 0.012 258); --color-muted: oklch(70% 0.02 258);
+    --color-rule: oklch(32% 0.02 258); --color-accent: oklch(72% 0.14 258); --color-accent-ink: oklch(14% 0.03 258); --color-focus: oklch(78% 0.15 258);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-paper: oklch(15% 0.02 258); --color-paper-2: oklch(19% 0.022 258); --color-paper-3: oklch(23% 0.024 258);
+  --color-ink: oklch(94% 0.01 258); --color-ink-2: oklch(84% 0.012 258); --color-muted: oklch(70% 0.02 258);
+  --color-rule: oklch(32% 0.02 258); --color-accent: oklch(72% 0.14 258); --color-accent-ink: oklch(14% 0.03 258); --color-focus: oklch(78% 0.15 258);
+}
+
+/* direction tokens, day and night, referenced by the [data-dir] blocks below; fixed by design, independent of the viewer theme */
+:root {
+  --ad-d-paper: oklch(95.5% 0.006 250);
+  --ad-d-paper-2: oklch(91% 0.009 250);
+  --ad-d-paper-3: oklch(99.5% 0.005 250);
+  --ad-d-ink: oklch(16% 0.014 262);
+  --ad-d-ink-2: oklch(29% 0.014 262);
+  --ad-d-muted: oklch(47% 0.016 260);
+  --ad-d-rule: oklch(80% 0.011 250);
+  --ad-d-ink-rule: oklch(34% 0.014 262);
+  --ad-d-accent: oklch(51% 0.2 258);
+  --ad-d-accent-ink: oklch(99.5% 0.003 250);
+  --ad-d-amber: oklch(81% 0.16 82);
+  --ad-d-amber-ink: oklch(16% 0.014 262);
+  --ad-d-go: oklch(46% 0.14 155);
+  --ad-d-stop: oklch(55% 0.2 28);
+  --ad-d-stop-ink: oklch(99% 0.003 250);
+  --ad-d-font: "Noto Sans KR", "Chivo Mono", ui-sans-serif, system-ui, sans-serif;
+  --ad-d-font-fig: "Chivo Mono", ui-monospace, monospace;
+  --ad-map-ground: oklch(93% 0.008 250);
+  --ad-map-block: oklch(89.5% 0.01 250);
+  --ad-map-road: oklch(99% 0.004 250);
+  --ad-map-major: oklch(99.5% 0.003 250);
+  --ad-map-park: oklch(90% 0.03 150);
+  --ad-map-label: oklch(40% 0.016 260);
+  --ad-map-building: oklch(86% 0.012 250);
+  --ad-mk-car: oklch(16% 0.014 262);
+  --ad-mk-car-ring: oklch(99.5% 0.003 250);
+  --ad-mk-pax: oklch(51% 0.2 258);
+  --ad-mk-pax-ring: oklch(99.5% 0.003 250);
+  --ad-mk-pick: oklch(81% 0.16 82);
+  --ad-mk-pick-ink: oklch(16% 0.014 262);
+  --ad-mk-route: oklch(51% 0.2 258);
+  --an-d-paper: oklch(15% 0.012 262);
+  --an-d-paper-2: oklch(20% 0.014 262);
+  --an-d-paper-3: oklch(11% 0.012 262);
+  --an-d-ink: oklch(96% 0.005 250);
+  --an-d-ink-2: oklch(86% 0.008 252);
+  --an-d-muted: oklch(70% 0.014 256);
+  --an-d-rule: oklch(31% 0.014 262);
+  --an-d-ink-rule: oklch(40% 0.014 262);
+  --an-d-accent: oklch(66% 0.18 258);
+  --an-d-accent-ink: oklch(12% 0.02 262);
+  --an-map-ground: oklch(17% 0.012 262);
+  --an-map-block: oklch(20% 0.014 262);
+  --an-map-road: oklch(26% 0.014 262);
+  --an-map-major: oklch(30% 0.014 262);
+  --an-map-park: oklch(21% 0.03 150);
+  --an-map-label: oklch(72% 0.014 256);
+  --an-map-building: oklch(23% 0.014 262);
+  --an-mk-car: oklch(96% 0.005 250);
+  --an-mk-car-ring: oklch(15% 0.012 262);
+  --an-mk-pax: oklch(66% 0.18 258);
+  --an-mk-pax-ring: oklch(96% 0.005 250);
+  --an-mk-pick-ink: oklch(15% 0.012 262);
+  --an-mk-route: oklch(66% 0.18 258);
+  --bd-d-paper: oklch(96% 0.008 262);
+  --bd-d-paper-2: oklch(92.5% 0.012 262);
+  --bd-d-paper-3: oklch(99.2% 0.004 262);
+  --bd-d-ink: oklch(19% 0.045 262);
+  --bd-d-ink-2: oklch(34% 0.04 262);
+  --bd-d-muted: oklch(50% 0.035 262);
+  --bd-d-rule: oklch(82% 0.02 262);
+  --bd-d-ink-rule: oklch(36% 0.05 262);
+  --bd-d-accent: oklch(66% 0.16 55);
+  --bd-d-accent-ink: oklch(12% 0.03 55);
+  --bd-d-amber: oklch(66% 0.16 55);
+  --bd-d-amber-ink: oklch(12% 0.03 55);
+  --bd-d-ice: oklch(56% 0.12 215);
+  --bd-d-go: oklch(46% 0.14 155);
+  --bd-d-stop: oklch(55% 0.2 28);
+  --bd-d-stop-ink: oklch(99% 0.003 250);
+  --bd-d-font: "Host Grotesk", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
+  --bd-d-font-fig: "Geist Mono", ui-monospace, monospace;
+  --bd-map-ground: oklch(94% 0.01 262);
+  --bd-map-block: oklch(90.5% 0.014 262);
+  --bd-map-road: oklch(99% 0.004 262);
+  --bd-map-major: oklch(99.5% 0.003 262);
+  --bd-map-park: oklch(91% 0.03 150);
+  --bd-map-label: oklch(42% 0.04 262);
+  --bd-map-building: oklch(87% 0.016 262);
+  --bd-mk-car: oklch(19% 0.045 262);
+  --bd-mk-car-ring: oklch(99.2% 0.004 262);
+  --bd-mk-pax: oklch(56% 0.12 215);
+  --bd-mk-pax-ring: oklch(99.2% 0.004 262);
+  --bd-mk-pick: oklch(66% 0.16 55);
+  --bd-mk-pick-ink: oklch(19% 0.045 262);
+  --bd-mk-route: oklch(56% 0.12 215);
+  --bn-d-paper: oklch(19% 0.055 262);
+  --bn-d-paper-2: oklch(23% 0.058 262);
+  --bn-d-paper-3: oklch(15% 0.05 262);
+  --bn-d-ink: oklch(94% 0.01 80);
+  --bn-d-ink-2: oklch(84% 0.011 80);
+  --bn-d-muted: oklch(70% 0.012 80);
+  --bn-d-rule: oklch(32% 0.06 262);
+  --bn-d-ink-rule: oklch(42% 0.06 262);
+  --bn-d-accent: oklch(76% 0.14 55);
+  --bn-d-accent-ink: oklch(12% 0.03 55);
+  --bn-d-amber: oklch(76% 0.14 55);
+  --bn-d-ice: oklch(84% 0.1 200);
+  --bn-map-ground: oklch(21% 0.05 262);
+  --bn-map-block: oklch(24% 0.052 262);
+  --bn-map-road: oklch(30% 0.05 262);
+  --bn-map-major: oklch(34% 0.05 262);
+  --bn-map-park: oklch(24% 0.05 170);
+  --bn-map-label: oklch(76% 0.02 80);
+  --bn-map-building: oklch(27% 0.05 262);
+  --bn-mk-car: oklch(94% 0.01 80);
+  --bn-mk-car-ring: oklch(19% 0.055 262);
+  --bn-mk-pax: oklch(84% 0.1 200);
+  --bn-mk-pax-ring: oklch(19% 0.055 262);
+  --bn-mk-pick: oklch(76% 0.14 55);
+  --bn-mk-pick-ink: oklch(19% 0.055 262);
+  --bn-mk-route: oklch(84% 0.1 200);
+  --cd-d-paper: oklch(97.6% 0.011 88);
+  --cd-d-paper-2: oklch(96.5% 0.02 160);
+  --cd-d-paper-3: oklch(99.4% 0.008 88);
+  --cd-d-ink: oklch(21% 0.025 170);
+  --cd-d-ink-2: oklch(31% 0.02 170);
+  --cd-d-muted: oklch(49% 0.024 165);
+  --cd-d-rule: oklch(86.5% 0.022 140);
+  --cd-d-ink-rule: oklch(40% 0.03 165);
+  --cd-d-accent: oklch(50% 0.13 160);
+  --cd-d-accent-deep: oklch(42% 0.11 162);
+  --cd-d-accent-ink: oklch(99% 0.006 160);
+  --cd-d-mint: oklch(88% 0.08 160);
+  --cd-d-plastic: oklch(87% 0.048 210);
+  --cd-d-glint: oklch(99.6% 0.004 88);
+  --cd-d-go: oklch(46% 0.13 160);
+  --cd-d-stop: oklch(50% 0.03 165);
+  --cd-d-stop-ink: oklch(99% 0.006 160);
+  --cd-d-font: "Instrument Sans", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
+  --cd-d-font-head: "Schibsted Grotesk", "Noto Sans KR", ui-sans-serif, sans-serif;
+  --cd-d-font-fig: "DM Mono", ui-monospace, monospace;
+  --cd-map-ground: oklch(95.5% 0.014 95);
+  --cd-map-block: oklch(92.5% 0.02 100);
+  --cd-map-road: oklch(99.2% 0.006 88);
+  --cd-map-major: oklch(99.6% 0.004 88);
+  --cd-map-park: oklch(91% 0.05 150);
+  --cd-map-label: oklch(45% 0.025 165);
+  --cd-map-building: oklch(89% 0.022 100);
+  --cd-mk-car: oklch(21% 0.025 170);
+  --cd-mk-car-ring: oklch(99.4% 0.008 88);
+  --cd-mk-pax: oklch(50% 0.13 160);
+  --cd-mk-pax-ring: oklch(99.4% 0.008 88);
+  --cd-mk-pick: oklch(88% 0.08 160);
+  --cd-mk-pick-ink: oklch(42% 0.11 162);
+  --cd-mk-route: oklch(50% 0.13 160);
+  --cn-d-paper: oklch(13% 0.01 170);
+  --cn-d-paper-2: oklch(18% 0.014 170);
+  --cn-d-paper-3: oklch(10% 0.01 170);
+  --cn-d-ink: oklch(96% 0.01 160);
+  --cn-d-ink-2: oklch(86% 0.012 160);
+  --cn-d-muted: oklch(70% 0.016 165);
+  --cn-d-rule: oklch(30% 0.018 165);
+  --cn-d-ink-rule: oklch(40% 0.02 165);
+  --cn-d-accent: oklch(64% 0.13 160);
+  --cn-d-accent-deep: oklch(54% 0.12 162);
+  --cn-d-accent-ink: oklch(12% 0.02 170);
+  --cn-d-mint: oklch(36% 0.07 160);
+  --cn-d-plastic: oklch(32% 0.05 210);
+  --cn-d-glint: oklch(45% 0.03 210);
+  --cn-map-ground: oklch(16% 0.012 170);
+  --cn-map-block: oklch(19% 0.014 170);
+  --cn-map-road: oklch(25% 0.014 170);
+  --cn-map-major: oklch(29% 0.014 170);
+  --cn-map-park: oklch(21% 0.04 150);
+  --cn-map-label: oklch(72% 0.016 165);
+  --cn-map-building: oklch(22% 0.014 170);
+  --cn-mk-car: oklch(96% 0.01 160);
+  --cn-mk-car-ring: oklch(13% 0.01 170);
+  --cn-mk-pax: oklch(64% 0.13 160);
+  --cn-mk-pax-ring: oklch(96% 0.01 160);
+  --cn-mk-pick: oklch(36% 0.07 160);
+  --cn-mk-pick-ink: oklch(96% 0.01 160);
+  --cn-mk-route: oklch(64% 0.13 160);
+  --color-scrim: oklch(15% 0.02 258 / 0.6);
+  --cd-shadow: 0 24px 48px -24px oklch(40% 0.08 165 / 0.35);
+}
+
+/* ---- direction tokens: each frame carries its own day/night set, independent of the viewer's theme ---- */
+[data-dir="a"] {
+  --d-paper: var(--ad-d-paper); --d-paper-2: var(--ad-d-paper-2); --d-paper-3: var(--ad-d-paper-3);
+  --d-ink: var(--ad-d-ink); --d-ink-2: var(--ad-d-ink-2); --d-muted: var(--ad-d-muted);
+  --d-rule: var(--ad-d-rule); --d-ink-rule: var(--ad-d-ink-rule);
+  --d-accent: var(--ad-d-accent); --d-accent-ink: var(--ad-d-accent-ink); --d-amber: var(--ad-d-amber); --d-amber-ink: var(--ad-d-amber-ink);
+  --d-go: var(--ad-d-go); --d-stop: var(--ad-d-stop); --d-stop-ink: var(--ad-d-stop-ink);
+  --d-font: var(--ad-d-font); --d-font-head: var(--d-font); --d-font-fig: var(--ad-d-font-fig);
+  --d-radius: 0; --d-radius-ctl: 0; --d-bar: 2px; --d-head-weight: 700; --d-fig-weight: 800;
+  --map-ground: var(--ad-map-ground); --map-block: var(--ad-map-block); --map-road: var(--ad-map-road); --map-major: var(--ad-map-major); --map-park: var(--ad-map-park); --map-label: var(--ad-map-label); --map-building: var(--ad-map-building);
+  --mk-car: var(--ad-mk-car); --mk-car-ring: var(--ad-mk-car-ring); --mk-pax: var(--ad-mk-pax); --mk-pax-ring: var(--ad-mk-pax-ring); --mk-pick: var(--ad-mk-pick); --mk-pick-ink: var(--ad-mk-pick-ink); --mk-route: var(--ad-mk-route);
+}
+[data-dir="a"] .night {
+  --d-paper: var(--an-d-paper); --d-paper-2: var(--an-d-paper-2); --d-paper-3: var(--an-d-paper-3);
+  --d-ink: var(--an-d-ink); --d-ink-2: var(--an-d-ink-2); --d-muted: var(--an-d-muted);
+  --d-rule: var(--an-d-rule); --d-ink-rule: var(--an-d-ink-rule);
+  --d-accent: var(--an-d-accent); --d-accent-ink: var(--an-d-accent-ink);
+  --map-ground: var(--an-map-ground); --map-block: var(--an-map-block); --map-road: var(--an-map-road); --map-major: var(--an-map-major); --map-park: var(--an-map-park); --map-label: var(--an-map-label); --map-building: var(--an-map-building);
+  --mk-car: var(--an-mk-car); --mk-car-ring: var(--an-mk-car-ring); --mk-pax: var(--an-mk-pax); --mk-pax-ring: var(--an-mk-pax-ring); --mk-pick-ink: var(--an-mk-pick-ink); --mk-route: var(--an-mk-route);
+}
+[data-dir="b"] {
+  --d-paper: var(--bd-d-paper); --d-paper-2: var(--bd-d-paper-2); --d-paper-3: var(--bd-d-paper-3);
+  --d-ink: var(--bd-d-ink); --d-ink-2: var(--bd-d-ink-2); --d-muted: var(--bd-d-muted);
+  --d-rule: var(--bd-d-rule); --d-ink-rule: var(--bd-d-ink-rule);
+  --d-accent: var(--bd-d-accent); --d-accent-ink: var(--bd-d-accent-ink); --d-amber: var(--bd-d-amber); --d-amber-ink: var(--bd-d-amber-ink);
+  --d-ice: var(--bd-d-ice); --d-go: var(--bd-d-go); --d-stop: var(--bd-d-stop); --d-stop-ink: var(--bd-d-stop-ink);
+  --d-font: var(--bd-d-font); --d-font-head: var(--d-font); --d-font-fig: var(--bd-d-font-fig);
+  --d-radius: 0; --d-radius-ctl: 0; --d-bar: 1px; --d-head-weight: 500; --d-fig-weight: 400;
+  --map-ground: var(--bd-map-ground); --map-block: var(--bd-map-block); --map-road: var(--bd-map-road); --map-major: var(--bd-map-major); --map-park: var(--bd-map-park); --map-label: var(--bd-map-label); --map-building: var(--bd-map-building);
+  --mk-car: var(--bd-mk-car); --mk-car-ring: var(--bd-mk-car-ring); --mk-pax: var(--bd-mk-pax); --mk-pax-ring: var(--bd-mk-pax-ring); --mk-pick: var(--bd-mk-pick); --mk-pick-ink: var(--bd-mk-pick-ink); --mk-route: var(--bd-mk-route);
+}
+[data-dir="b"] .night {
+  --d-paper: var(--bn-d-paper); --d-paper-2: var(--bn-d-paper-2); --d-paper-3: var(--bn-d-paper-3);
+  --d-ink: var(--bn-d-ink); --d-ink-2: var(--bn-d-ink-2); --d-muted: var(--bn-d-muted);
+  --d-rule: var(--bn-d-rule); --d-ink-rule: var(--bn-d-ink-rule);
+  --d-accent: var(--bn-d-accent); --d-accent-ink: var(--bn-d-accent-ink); --d-amber: var(--bn-d-amber);
+  --d-ice: var(--bn-d-ice);
+  --map-ground: var(--bn-map-ground); --map-block: var(--bn-map-block); --map-road: var(--bn-map-road); --map-major: var(--bn-map-major); --map-park: var(--bn-map-park); --map-label: var(--bn-map-label); --map-building: var(--bn-map-building);
+  --mk-car: var(--bn-mk-car); --mk-car-ring: var(--bn-mk-car-ring); --mk-pax: var(--bn-mk-pax); --mk-pax-ring: var(--bn-mk-pax-ring); --mk-pick: var(--bn-mk-pick); --mk-pick-ink: var(--bn-mk-pick-ink); --mk-route: var(--bn-mk-route);
+}
+[data-dir="c"] {
+  --d-paper: var(--cd-d-paper); --d-paper-2: var(--cd-d-paper-2); --d-paper-3: var(--cd-d-paper-3);
+  --d-ink: var(--cd-d-ink); --d-ink-2: var(--cd-d-ink-2); --d-muted: var(--cd-d-muted);
+  --d-rule: var(--cd-d-rule); --d-ink-rule: var(--cd-d-ink-rule);
+  --d-accent: var(--cd-d-accent); --d-accent-deep: var(--cd-d-accent-deep); --d-accent-ink: var(--cd-d-accent-ink); --d-mint: var(--cd-d-mint);
+  --d-plastic: var(--cd-d-plastic); --d-glint: var(--cd-d-glint);
+  --d-go: var(--cd-d-go); --d-stop: var(--cd-d-stop); --d-stop-ink: var(--cd-d-stop-ink);
+  --d-font: var(--cd-d-font); --d-font-head: var(--cd-d-font-head); --d-font-fig: var(--cd-d-font-fig);
+  --d-radius: 14px; --d-radius-ctl: 10px; --d-bar: 1px; --d-head-weight: 700; --d-fig-weight: 500;
+  --map-ground: var(--cd-map-ground); --map-block: var(--cd-map-block); --map-road: var(--cd-map-road); --map-major: var(--cd-map-major); --map-park: var(--cd-map-park); --map-label: var(--cd-map-label); --map-building: var(--cd-map-building);
+  --mk-car: var(--cd-mk-car); --mk-car-ring: var(--cd-mk-car-ring); --mk-pax: var(--cd-mk-pax); --mk-pax-ring: var(--cd-mk-pax-ring); --mk-pick: var(--cd-mk-pick); --mk-pick-ink: var(--cd-mk-pick-ink); --mk-route: var(--cd-mk-route);
+}
+[data-dir="c"] .night {
+  --d-paper: var(--cn-d-paper); --d-paper-2: var(--cn-d-paper-2); --d-paper-3: var(--cn-d-paper-3);
+  --d-ink: var(--cn-d-ink); --d-ink-2: var(--cn-d-ink-2); --d-muted: var(--cn-d-muted);
+  --d-rule: var(--cn-d-rule); --d-ink-rule: var(--cn-d-ink-rule);
+  --d-accent: var(--cn-d-accent); --d-accent-deep: var(--cn-d-accent-deep); --d-accent-ink: var(--cn-d-accent-ink); --d-mint: var(--cn-d-mint);
+  --d-plastic: var(--cn-d-plastic); --d-glint: var(--cn-d-glint);
+  --map-ground: var(--cn-map-ground); --map-block: var(--cn-map-block); --map-road: var(--cn-map-road); --map-major: var(--cn-map-major); --map-park: var(--cn-map-park); --map-label: var(--cn-map-label); --map-building: var(--cn-map-building);
+  --mk-car: var(--cn-mk-car); --mk-car-ring: var(--cn-mk-car-ring); --mk-pax: var(--cn-mk-pax); --mk-pax-ring: var(--cn-mk-pax-ring); --mk-pick: var(--cn-mk-pick); --mk-pick-ink: var(--cn-mk-pick-ink); --mk-route: var(--cn-mk-route);
+}
+
+/* ---- the sheet ---- */
+html, body { overflow-x: clip; scrollbar-color: var(--color-muted) var(--color-paper-2); }
+body { margin: 0; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-body); font-size: var(--text-md); line-height: 1.6; font-synthesis: none; -webkit-font-smoothing: antialiased; padding-block: 0 var(--space-3xl); padding-left: var(--gutter); padding-right: var(--gutter-r); }
+*, *::before, *::after { box-sizing: border-box; }
+::selection { background: var(--color-accent); color: var(--color-accent-ink); }
+h1, h2, h3 { font-family: var(--font-display); color: var(--color-ink); text-wrap: balance; overflow-wrap: break-word; min-width: 0; margin: 0; }
+h1 { font-size: var(--text-display); font-weight: 500; letter-spacing: -0.02em; line-height: 1.08; max-width: 20ch; }
+h2 { font-size: var(--text-section); font-weight: 500; letter-spacing: -0.015em; line-height: 1.15; max-width: 30ch; }
+h3 { font-size: var(--text-title); font-weight: 500; line-height: 1.25; }
+p { margin: 0; max-width: 65ch; text-wrap: pretty; }
+.wrap { width: 100%; max-width: var(--container); margin: 0 auto; }
+.masthead { display: grid; gap: var(--space-md); padding-block: var(--space-2xl) var(--space-xl); border-bottom: 1px solid var(--color-rule); }
+.masthead .lead { font-size: var(--text-lead); color: var(--color-ink-2); }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-lg); padding-block: var(--space-lg); margin: 0; }
+.facts div { display: grid; gap: var(--space-2xs); padding-inline: var(--space-lg); border-left: 1px solid var(--color-rule); }
+.facts div:first-child { padding-left: 0; border-left: 0; }
+.facts dt { font-weight: 500; color: var(--color-muted); font-size: var(--text-sm); }
+.facts dd { margin: 0; }
+section.dir { padding-block: var(--space-2xl); border-bottom: 1px solid var(--color-rule); display: grid; gap: var(--space-lg); }
+.dir-head { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--space-lg); align-items: end; }
+.dir-head .lead { color: var(--color-ink-2); }
+.dir-head ul { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--space-xs); font-size: var(--text-sm); color: var(--color-ink-2); }
+.dir-head li { padding-left: var(--space-md); border-left: 2px solid var(--color-rule); }
+.dir-head li b { font-weight: 500; color: var(--color-ink); }
+.frames { display: grid; gap: var(--space-lg); }
+.row-ivi { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-lg); }
+.row-phone { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-lg); }
+figure.frame { margin: 0; display: grid; gap: var(--space-xs); min-width: 0; }
+figure.frame figcaption { display: flex; justify-content: space-between; align-items: center; gap: var(--space-sm); font-size: var(--text-sm); color: var(--color-muted); }
+figure.frame figcaption b { font-weight: 500; color: var(--color-ink); }
+.stage { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: clip; border: 1px solid var(--color-rule); background: var(--color-paper-2); --w: 1280; --s: 0.5; }
+.stage.phone { aspect-ratio: 390 / 780; --w: 390; }
+.screen { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform: scale(var(--s)); transform-origin: 0 0; font-family: var(--d-font); color: var(--d-ink); background: var(--d-paper); overflow: clip; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.stage.phone .screen { width: 390px; height: 780px; }
+.zoom { justify-self: end; font: 500 var(--text-sm) var(--font-body); color: var(--color-ink-2); background: none; border: 1px solid var(--color-rule); border-radius: var(--radius-card); padding: var(--space-2xs) var(--space-sm); min-height: 32px; cursor: pointer; white-space: nowrap; transition: background-color var(--dur-short) var(--ease-out); }
+.zoom:hover { background: var(--color-paper-2); }
+.zoom:active { transform: translateY(1px); }
+.zoom:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.zoom:disabled { opacity: 0.55; cursor: not-allowed; }
+dialog.lens { width: min(100% - 2 * var(--space-lg), 1340px); max-width: none; height: min(100dvh - 2 * var(--space-lg), 860px); margin: auto; padding: 0; border: 1px solid var(--color-rule); border-radius: var(--radius-card); background: var(--color-paper); color: var(--color-ink); }
+dialog.lens::backdrop { background: var(--color-scrim); }
+.lens-bar { display: flex; justify-content: space-between; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-rule); font-size: var(--text-sm); }
+.lens-body { overflow: auto; height: calc(100% - 50px); padding: var(--space-md); }
+.lens-body .screen { position: relative; transform: none; }
+.compare { padding-block: var(--space-2xl); display: grid; gap: var(--space-lg); border-bottom: 1px solid var(--color-rule); }
+.compare-table { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+th, td { text-align: left; padding: var(--space-sm) var(--space-md) var(--space-sm) 0; vertical-align: top; border-bottom: 1px solid var(--color-rule); }
+th { font-weight: 500; color: var(--color-muted); }
+td:first-child { font-weight: 500; color: var(--color-ink); white-space: nowrap; }
+.pick { padding-block: var(--space-2xl); display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--space-lg); }
+.pick .mark { font-family: var(--font-outlier); font-size: var(--text-display); line-height: 1; color: var(--color-ink); font-weight: 500; }
+.pick ol { margin: 0; padding-left: 1.2em; display: grid; gap: var(--space-xs); color: var(--color-ink-2); font-size: var(--text-sm); }
+@media (max-width: 60rem) {
+  .facts { grid-template-columns: minmax(0, 1fr); gap: var(--space-sm); }
+  .facts div { padding-inline: 0; border-left: 0; padding-top: var(--space-sm); border-top: 1px solid var(--color-rule); }
+  .facts div:first-child { border-top: 0; padding-top: 0; }
+  .dir-head, .pick { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 40rem) { .row-phone { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- shared screen grammar ---- */
+.map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.ivi .map { inset: 0; }
+.plate { position: absolute; display: grid; gap: var(--space-3xs); padding: 20px var(--space-lg); background: var(--d-paper-3); border: var(--d-bar) solid var(--d-ink); border-radius: var(--d-radius); color: var(--d-ink); }
+.plate.ink { background: var(--d-ink); color: var(--d-paper-3); border-color: var(--d-ink); }
+.plate .head { font-family: var(--d-font-head); font-weight: var(--d-head-weight); font-size: 34px; line-height: 1.12; letter-spacing: -0.02em; margin: 0; max-width: 16ch; }
+.plate .fig { font-family: var(--d-font-fig); font-weight: var(--d-fig-weight); font-size: 64px; line-height: 1; letter-spacing: -0.02em; margin-top: var(--space-xs); }
+.plate .fig small { font-size: 26px; font-weight: 400; margin-left: var(--space-xs); }
+.plate.ink .fig { color: var(--d-amber); }
+.plate .meta { font-size: 18px; color: var(--d-muted); }
+.plate.ink .meta { color: var(--d-paper-2); }
+.status { left: 32px; top: 32px; min-width: 380px; }
+.live { position: absolute; right: 32px; top: 32px; display: inline-flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); font-size: 18px; font-weight: 500; background: var(--d-paper-3); border: var(--d-bar) solid var(--d-rule); border-radius: var(--d-radius); color: var(--d-ink-2); }
+.live i { width: 12px; height: 12px; background: var(--d-accent); border-radius: 50%; }
+.actions { position: absolute; left: 32px; right: 32px; bottom: 32px; display: flex; gap: var(--space-md); align-items: stretch; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm); min-height: 76px; padding: 0 32px; font-family: var(--d-font); font-size: 24px; font-weight: 700; border: var(--d-bar) solid var(--d-ink); border-radius: var(--d-radius-ctl); background: var(--d-paper-3); color: var(--d-ink); white-space: nowrap; cursor: pointer; transition: background-color var(--dur-micro) steps(1), transform var(--dur-micro) var(--ease-out); }
+.btn.primary { background: var(--d-accent); border-color: var(--d-accent); color: var(--d-accent-ink); }
+.btn.quiet { border-color: var(--d-rule); color: var(--d-ink-2); font-weight: 500; }
+.btn.spacer { margin-left: auto; }
+.btn:hover { background: var(--d-paper-2); }
+.btn.primary:hover { background: var(--d-accent); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 3px solid var(--d-accent); outline-offset: 3px; }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.sheet { position: absolute; left: 32px; right: 32px; bottom: 32px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: var(--space-md); padding: 20px; background: var(--d-paper-3); border: var(--d-bar) solid var(--d-ink); border-radius: var(--d-radius); }
+.sheet .title { grid-column: 1 / -1; font-size: 22px; color: var(--d-muted); font-weight: 500; }
+.opt { display: grid; align-content: end; gap: var(--space-xs); min-height: 152px; padding: 20px var(--space-lg); border: var(--d-bar) solid var(--d-ink); border-radius: var(--d-radius-ctl); background: var(--d-paper); color: var(--d-ink); cursor: pointer; font-family: var(--d-font); text-align: left; transition: background-color var(--dur-micro) steps(1); }
+.opt b { font-size: 30px; font-weight: 700; line-height: 1.1; }
+.opt span { font-family: var(--d-font-fig); font-size: 20px; color: var(--d-muted); }
+.opt.primary { background: var(--d-accent); border-color: var(--d-accent); color: var(--d-accent-ink); }
+.opt.primary span { color: var(--d-accent-ink); opacity: 0.85; }
+.opt:hover { background: var(--d-paper-2); }
+.opt:focus-visible { outline: 3px solid var(--d-accent); outline-offset: 3px; }
+.sheet .cancel { align-self: end; min-height: 76px; }
+.card { position: absolute; right: 32px; bottom: 132px; width: 460px; display: grid; gap: var(--space-md); padding: var(--space-lg); background: var(--d-paper-3); border: var(--d-bar) solid var(--d-ink); border-radius: var(--d-radius); }
+.card .who { font-size: 18px; color: var(--d-muted); font-weight: 500; }
+.card .say { font-family: var(--d-font-head); font-weight: var(--d-head-weight); font-size: 30px; line-height: 1.15; letter-spacing: -0.015em; }
+.card .say span { font-family: var(--d-font-fig); font-weight: 400; font-size: 20px; color: var(--d-muted); display: block; margin-top: var(--space-2xs); }
+.card .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-sm); }
+.card .btn { min-height: 64px; font-size: 22px; padding: 0 20px; }
+.warn { position: absolute; left: 32px; right: 32px; top: 32px; padding: var(--space-lg) 28px; background: var(--d-stop); color: var(--d-stop-ink); border-radius: var(--d-radius); font-size: 30px; font-weight: 700; }
+
+/* direction B: hairline instrument, corner ticks, mono figures with units */
+[data-dir="b"] .plate { border-width: 1px; border-color: var(--d-rule); background: var(--d-paper-3); }
+[data-dir="b"] .plate.ink { background: var(--d-paper-2); color: var(--d-ink); border-color: var(--d-rule); }
+[data-dir="b"] .plate.ink .fig { color: var(--d-ink); }
+[data-dir="b"] .night .plate.ink .fig { color: var(--d-accent); }
+[data-dir="b"] .plate.ink .meta { color: var(--d-muted); opacity: 1; }
+[data-dir="b"] .status::before, [data-dir="b"] .status::after { content: ""; position: absolute; width: 14px; height: 14px; border: 0 solid var(--d-muted); pointer-events: none; }
+[data-dir="b"] .status::before { top: -8px; left: -8px; border-width: 1px 0 0 1px; }
+[data-dir="b"] .status::after { right: -8px; bottom: -8px; border-width: 0 1px 1px 0; }
+[data-dir="b"] .btn { font-weight: 500; border-color: var(--d-rule); }
+[data-dir="b"] .btn.primary { border-color: var(--d-accent); font-weight: 500; }
+[data-dir="b"] .sheet, [data-dir="b"] .card { border-color: var(--d-rule); }
+[data-dir="b"] .opt { border-color: var(--d-rule); }
+[data-dir="b"] .opt b { font-weight: 500; }
+[data-dir="b"] .live i { background: var(--d-ice); }
+
+/* direction C: moulded plastic keys, tinted translucent well, rounded */
+[data-dir="c"] .plate { border: 0; box-shadow: inset 0 1.5px 0 var(--d-glint), 0 0 0 1px var(--d-rule), 0 3px 0 var(--d-rule); }
+[data-dir="c"] .plate.ink { background: color-mix(in oklab, var(--d-plastic) 72%, var(--d-paper-3)); color: var(--d-ink); box-shadow: inset 0 1.5px 0 var(--d-glint), 0 0 0 1px var(--d-rule), 0 3px 0 var(--d-rule); }
+[data-dir="c"] .plate.ink .fig { color: var(--d-accent-deep); }
+[data-dir="c"] .plate.ink .meta { color: var(--d-muted); opacity: 1; }
+[data-dir="c"] .btn { border: 0; box-shadow: inset 0 1px 0 var(--d-glint), 0 0 0 1px var(--d-rule), 0 3px 0 var(--d-rule); font-weight: 500; }
+[data-dir="c"] .btn:active { transform: translateY(3px); box-shadow: inset 0 1px 0 var(--d-glint), 0 0 0 1px var(--d-rule); }
+[data-dir="c"] .btn.primary { background: var(--d-accent); box-shadow: 0 0 0 1px var(--d-accent-deep), 0 3px 0 var(--d-accent-deep); }
+[data-dir="c"] .sheet, [data-dir="c"] .card { border: 0; box-shadow: 0 0 0 1px var(--d-rule), var(--cd-shadow); }
+[data-dir="c"] .opt { border: 0; background: var(--d-paper-3); box-shadow: inset 0 1px 0 var(--d-glint), 0 0 0 1px var(--d-rule), 0 3px 0 var(--d-rule); }
+[data-dir="c"] .opt.primary { background: var(--d-mint); color: var(--d-ink); box-shadow: 0 0 0 1px var(--d-accent), 0 3px 0 var(--d-accent); }
+[data-dir="c"] .opt.primary span { color: var(--d-accent-deep); }
+[data-dir="c"] .opt b { font-weight: 500; }
+[data-dir="c"] .live { border: 0; box-shadow: 0 0 0 1px var(--d-rule); }
+
+/* ---- phone grammar ---- */
+.ph { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.ph-top { display: flex; justify-content: space-between; align-items: center; padding: var(--space-md) var(--space-md) var(--space-sm); font-size: 15px; }
+.ph-top b { font-family: var(--d-font-head); font-weight: var(--d-head-weight); font-size: 18px; }
+.ph-top .live { position: static; padding: var(--space-2xs) var(--space-sm); font-size: 13px; }
+.ph-map { position: relative; min-height: 0; border-top: var(--d-bar) solid var(--d-ink); border-bottom: var(--d-bar) solid var(--d-ink); }
+.ph-map .map { position: absolute; }
+.ph-body { display: grid; gap: var(--space-sm); padding: var(--space-md); background: var(--d-paper-3); }
+.ph-body .head { font-family: var(--d-font-head); font-weight: var(--d-head-weight); font-size: 24px; line-height: 1.15; letter-spacing: -0.015em; margin: 0; }
+.ph-body .sub { font-size: 14px; color: var(--d-muted); line-height: 1.45; }
+.ph-plate { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-md); }
+.ph-plate .num { font-family: var(--d-font-fig); font-weight: 800; font-size: 40px; line-height: 1; font-variant-numeric: tabular-nums; padding: var(--space-sm) var(--space-md); background: var(--d-ink); color: var(--d-amber, var(--d-paper-3)); border-radius: var(--d-radius-ctl); letter-spacing: 0.04em; }
+.ph-plate .car { display: grid; gap: var(--space-3xs); }
+.ph-plate .car b { font-size: 17px; font-weight: 700; }
+.ph-plate .car span { font-size: 13px; color: var(--d-muted); }
+.chips { display: grid; gap: var(--space-xs); }
+.chip { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 0 var(--space-md); font-family: var(--d-font); font-size: 16px; font-weight: 700; border: var(--d-bar) solid var(--d-ink); border-radius: var(--d-radius-ctl); background: var(--d-paper-3); color: var(--d-ink); cursor: pointer; text-align: left; transition: background-color var(--dur-micro) steps(1); }
+.chip span { font-family: var(--d-font-fig); font-weight: 400; font-size: 13px; color: var(--d-muted); }
+.chip:hover { background: var(--d-paper-2); }
+.chip:focus-visible { outline: 3px solid var(--d-accent); outline-offset: 2px; }
+.ph-fact { display: flex; justify-content: space-between; align-items: center; padding: var(--space-sm) var(--space-md); background: var(--d-paper-2); border-radius: var(--d-radius-ctl); font-size: 14px; }
+.ph-fact b { font-weight: 700; color: var(--d-go); }
+.ph .go { background: var(--d-go); color: var(--d-accent-ink); padding: var(--space-md); border-radius: var(--d-radius); display: grid; gap: var(--space-2xs); }
+.ph .go .head { color: inherit; }
+.ph .go .sub { color: inherit; }
+[data-dir="b"] .ph-map { border-color: var(--d-rule); }
+[data-dir="b"] .ph-plate .num { background: var(--d-paper-2); color: var(--d-ink); font-weight: 500; box-shadow: inset 0 0 0 1px var(--d-rule); }
+[data-dir="b"] .ph-body .head, [data-dir="b"] .ph-top b { font-weight: 500; }
+[data-dir="b"] .chip { border-color: var(--d-rule); font-weight: 500; }
+[data-dir="b"] .ph-fact b { color: var(--d-ink); }
+[data-dir="b"] .ph .go { background: var(--d-paper-2); color: var(--d-ink); box-shadow: inset 0 0 0 1px var(--d-ice); }
+[data-dir="c"] .ph-map { border: 0; }
+[data-dir="c"] .ph-body { border-top-left-radius: 24px; border-top-right-radius: 24px; margin-top: calc(-1 * var(--space-lg)); position: relative; box-shadow: 0 -1px 0 var(--d-rule); }
+[data-dir="c"] .ph-plate .num { background: var(--d-ink); color: var(--d-paper-3); font-weight: 500; }
+[data-dir="c"] .chip { border: 0; box-shadow: inset 0 1px 0 var(--d-glint), 0 0 0 1px var(--d-rule), 0 3px 0 var(--d-rule); font-weight: 500; }
+[data-dir="c"] .ph .go { background: var(--d-mint); color: var(--d-ink); }
+[data-dir="c"] .ph-fact b { color: var(--d-accent-deep); }
+
+/* map marks */
+.mk-route { stroke: var(--mk-route); stroke-width: 4; stroke-dasharray: 10 12; fill: none; stroke-linecap: round; }
+.mk-car-ring { fill: var(--mk-car-ring); stroke: var(--mk-car); stroke-width: 3; }
+.mk-car { fill: var(--mk-car); }
+.mk-pax-halo { fill: var(--mk-pax); opacity: 0.16; }
+.mk-pax { fill: var(--mk-pax); stroke: var(--mk-pax-ring); stroke-width: 4; }
+.mk-pick { fill: var(--mk-pick); stroke: var(--mk-pick-ink); stroke-width: 3; }
+.mk-pick-alt { fill: var(--map-road); stroke: var(--mk-pick-ink); stroke-width: 3; stroke-dasharray: 6 6; }
+.mk-label { font-family: var(--d-font-fig); font-size: 20px; font-weight: 500; fill: var(--d-ink); paint-order: stroke; stroke: var(--map-road); stroke-width: 6px; stroke-linejoin: round; }
+.map-label { font-family: var(--d-font); font-size: 18px; fill: var(--map-label); }
+.map-label.major { font-size: 20px; letter-spacing: 0.02em; }
+@media (prefers-reduced-motion: reduce) { .btn, .opt, .chip, .zoom { transition: none; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="streets" viewBox="0 0 1280 720">
+      <rect width="1280" height="720" fill="var(--map-ground)"/>
+      <g fill="var(--map-block)">
+        <rect x="0" y="0" width="239" height="159"/><rect x="261" y="0" width="338" height="159"/><rect x="621" y="0" width="328" height="159"/><rect x="971" y="0" width="309" height="159"/>
+        <rect x="0" y="181" width="239" height="112"/><rect x="261" y="181" width="338" height="112"/><rect x="621" y="181" width="328" height="112"/>
+        <rect x="0" y="307" width="239" height="100"/><rect x="261" y="307" width="338" height="100"/><rect x="621" y="307" width="328" height="100"/><rect x="971" y="307" width="309" height="100"/>
+        <rect x="0" y="453" width="239" height="100"/><rect x="261" y="453" width="338" height="100"/><rect x="621" y="453" width="328" height="100"/><rect x="971" y="453" width="309" height="100"/>
+        <rect x="0" y="567" width="239" height="76"/><rect x="261" y="567" width="338" height="76"/><rect x="621" y="567" width="328" height="76"/><rect x="971" y="567" width="309" height="76"/>
+        <rect x="0" y="657" width="239" height="63"/><rect x="261" y="657" width="338" height="63"/><rect x="621" y="657" width="328" height="63"/><rect x="971" y="657" width="309" height="63"/>
+      </g>
+      <rect x="971" y="181" width="309" height="112" fill="var(--map-park)"/>
+      <g fill="var(--map-building)">
+        <rect x="24" y="24" width="90" height="60"/><rect x="130" y="40" width="80" height="90"/><rect x="290" y="30" width="120" height="70"/><rect x="430" y="20" width="140" height="110"/><rect x="650" y="36" width="110" height="80"/><rect x="790" y="24" width="130" height="100"/><rect x="1000" y="30" width="100" height="90"/><rect x="1130" y="50" width="120" height="70"/>
+        <rect x="30" y="200" width="150" height="70"/><rect x="300" y="196" width="100" height="80"/><rect x="430" y="210" width="140" height="60"/><rect x="650" y="200" width="120" height="76"/><rect x="800" y="196" width="120" height="80"/>
+        <rect x="30" y="322" width="100" height="70"/><rect x="150" y="330" width="70" height="60"/><rect x="290" y="330" width="130" height="60"/><rect x="450" y="322" width="120" height="70"/><rect x="650" y="330" width="90" height="60"/><rect x="760" y="322" width="160" height="70"/><rect x="1000" y="330" width="120" height="60"/><rect x="1150" y="322" width="100" height="70"/>
+        <rect x="30" y="468" width="120" height="70"/><rect x="290" y="470" width="110" height="66"/><rect x="430" y="464" width="140" height="74"/><rect x="650" y="470" width="110" height="64"/><rect x="790" y="466" width="130" height="70"/><rect x="1000" y="470" width="110" height="64"/><rect x="1140" y="464" width="110" height="74"/>
+        <rect x="30" y="580" width="90" height="50"/><rect x="300" y="582" width="120" height="48"/><rect x="660" y="582" width="100" height="48"/><rect x="1000" y="580" width="120" height="50"/>
+      </g>
+      <g stroke="var(--map-road)" stroke-linecap="butt">
+        <line x1="0" y1="170" x2="1280" y2="170" stroke-width="18"/>
+        <line x1="0" y1="300" x2="1280" y2="300" stroke-width="12"/>
+        <line x1="0" y1="560" x2="1280" y2="560" stroke-width="12"/>
+        <line x1="0" y1="650" x2="1280" y2="650" stroke-width="12"/>
+        <line x1="250" y1="0" x2="250" y2="720" stroke-width="20"/>
+        <line x1="610" y1="0" x2="610" y2="720" stroke-width="20"/>
+        <line x1="960" y1="0" x2="960" y2="720" stroke-width="20"/>
+      </g>
+      <line x1="0" y1="430" x2="1280" y2="430" stroke="var(--map-major)" stroke-width="44"/>
+      <line x1="0" y1="430" x2="1280" y2="430" stroke="var(--map-block)" stroke-width="2" stroke-dasharray="26 18"/>
+      <text class="map-label major" x="1020" y="418">남부순환로</text>
+      <text class="map-label" x="282" y="298">대치동</text>
+      <text class="map-label" x="990" y="246">공원</text>
+      <text class="map-label" x="640" y="398">파리바게뜨 대치점</text>
+      <text class="map-label" x="640" y="494">한빛약국</text>
+    </symbol>
+    <symbol id="car" viewBox="-20 -20 40 40"><circle class="mk-car-ring" r="17"/><path class="mk-car" d="M0 -12 L9 10 L0 5 L-9 10 Z"/></symbol>
+    <symbol id="pax" viewBox="-40 -40 80 80"><circle class="mk-pax-halo" r="38"/><circle class="mk-pax" r="10"/></symbol>
+  </defs>
+</svg>
+
+<header class="wrap masthead">
+  <h1>마중 화면, 세 가지 방향</h1>
+  <p class="lead">차량 화면에는 동승자 위치와 ‘여기 못 서요’만, 동승자 웹에는 지도와 번호판, 간편 제안만 남겼습니다. 세 방향은 화면 구성이 같고 재질만 다릅니다.</p>
+  <dl class="facts">
+    <div><dt>바탕이 된 사실</dt><dd>Pleos Connect 런처 캡처: 낮에는 밝은 바탕, 검은 판, 각진 모서리, 얇은 선. 현대 공식 사이트에서 뽑은 브랜드 블루(#002C5F)의 색상각을 파란 신호에 씁니다.</dd></div>
+    <div><dt>차량 화면이 하는 일</dt><dd>지도 위에 동승자, 내 차, 승차 지점. 가는 동안 누를 것은 ‘여기 못 서요’ 하나, 멈춘 뒤에는 ‘주변 확인 끝, 문 열기’ 하나입니다.</dd></div>
+    <div><dt>동승자 웹이 하는 일</dt><dd>지도 위의 차와 나, 번호판 끝 4자리, 그리고 한 번 눌러 보내는 제안 세 가지. 차가 P단에 서면 ‘지금 타도 돼요’로 바뀝니다.</dd></div>
+  </dl>
+</header>
+
+<!-- ============================ A ============================ -->
+<section class="wrap dir" data-dir="a" id="dir-a">
+  <div class="dir-head">
+    <div>
+      <h2>A. 사인보드</h2>
+      <p class="lead">역 안내판처럼 읽힙니다. 회색 종이 위 먹색 판, 숫자는 고정폭, 2px 테두리. 현대 블루는 ‘지금 살아 있는 것’에만, 호박색은 먹색 판 위의 숫자에만 씁니다. Hallmark 테마 Wayfind.</p>
+    </div>
+    <ul>
+      <li><b>어울리는 점</b> Pleos 런처의 검은 검색판과 각진 흰 버튼을 그대로 잇습니다. 2 m 밖에서도 숫자가 먼저 보입니다.</li>
+      <li><b>밤</b> 같은 토큰의 night 색상표. 종이가 먹색이 되고 파란 신호가 밝아집니다.</li>
+      <li><b>주의</b> 한글 고정폭 서체가 없어 글은 Noto Sans KR, 숫자와 번호판만 Chivo Mono입니다. 안내판의 느낌은 판과 테두리, 숫자가 냅니다.</li>
+    </ul>
+  </div>
+  <div class="frames">
+    <div class="row-ivi">
+      <figure class="frame">
+        <div class="stage"><div class="screen ivi">
+          <svg class="map" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" role="img" aria-label="지도: 서쪽에서 동쪽으로 가는 내 차, 파리바게뜨 앞 인도의 동승자, 승차 지점">
+            <use href="#streets" width="1280" height="720"/>
+            <path class="mk-route" d="M352 445 C 480 445, 560 462, 724 462"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32"/><text class="mk-label" x="770" y="472">승차 지점</text>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="310" y="425" width="40" height="40" transform="rotate(90 330 445)"/>
+          </svg>
+          <div class="plate ink status"><p class="head">지수님에게 가는 중</p><div class="fig">320<small>m</small></div><div class="meta">약 2분, 동승자 위치 3초 전</div></div>
+          <div class="live"><i></i>동승자 연결됨</div>
+          <div class="actions"><button class="btn" type="button">여기 못 서요</button><button class="btn quiet spacer" type="button">마중 종료</button></div>
+        </div></div>
+        <figcaption><span><b>차량 화면, 낮</b> 접근 중. 지도와 거리, 버튼 하나.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+      <figure class="frame">
+        <div class="stage"><div class="screen ivi">
+          <svg class="map" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" role="img" aria-label="지도: 승차 지점의 대안 두 곳, 건너편과 30 m 앞">
+            <use href="#streets" width="1280" height="720"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32"/>
+            <rect class="mk-pick-alt" x="724" y="382" width="32" height="32"/><text class="mk-label" x="770" y="406">건너편</text>
+            <rect class="mk-pick-alt" x="790" y="446" width="32" height="32"/><text class="mk-label" x="836" y="472">+30 m</text>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="600" y="425" width="40" height="40" transform="rotate(90 620 445)"/>
+          </svg>
+          <div class="plate ink status"><p class="head">여기 못 서요</p><div class="meta">어디서 태울까요? 동승자에게 바로 알립니다.</div></div>
+          <div class="sheet">
+            <button class="opt primary" type="button"><b>건너편에서</b><span>U턴, 약 1분</span></button>
+            <button class="opt" type="button"><b>앞으로 30 m</b><span>같은 쪽, 약 20초</span></button>
+            <button class="opt" type="button"><b>한 바퀴 돌고 올게요</b><span>약 3분</span></button>
+            <button class="btn quiet cancel" type="button">취소</button>
+          </div>
+        </div></div>
+        <figcaption><span><b>차량 화면, 낮</b> ‘여기 못 서요’를 누르면 대안 셋.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+      <figure class="frame">
+        <div class="stage"><div class="screen ivi night">
+          <svg class="map" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" role="img" aria-label="밤 지도: 승차 지점 옆에 멈춘 내 차와 동승자">
+            <use href="#streets" width="1280" height="720"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32"/>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="680" y="425" width="40" height="40" transform="rotate(90 700 445)"/>
+          </svg>
+          <div class="plate ink status"><p class="head">P단 정차. 주변을 확인하세요</p><div class="fig">12<small>m</small></div><div class="meta">동승자는 인도 쪽, 오른쪽 문으로 탑니다</div></div>
+          <div class="live"><i></i>동승자 연결됨</div>
+          <div class="card"><div class="who">지수님의 제안</div><div class="say">여기서 태워 주세요<span>앞으로 25 m, 약국 앞</span></div><div class="pair"><button class="btn primary" type="button">수락</button><button class="btn quiet" type="button">나중에</button></div></div>
+          <div class="actions"><button class="btn primary" type="button">주변 확인 끝, 문 열기</button><button class="btn quiet spacer" type="button">마중 종료</button></div>
+        </div></div>
+        <figcaption><span><b>차량 화면, 밤</b> P단 정차. 동승자의 제안 카드와 승차 맞이.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+    </div>
+    <div class="row-phone">
+      <figure class="frame">
+        <div class="stage phone"><div class="screen ph">
+          <div class="ph-top"><b>마중</b><span class="live"><i></i>연결됨</span></div>
+          <div class="ph-map"><svg class="map" viewBox="300 250 560 500" preserveAspectRatio="xMidYMid slice" role="img" aria-label="지도: 오고 있는 차와 내 위치, 승차 지점">
+            <use href="#streets" width="1280" height="720"/>
+            <path class="mk-route" d="M352 445 C 480 445, 560 462, 724 462"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32"/>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="310" y="425" width="40" height="40" transform="rotate(90 330 445)"/>
+          </svg></div>
+          <div class="ph-body">
+            <div><p class="head">차가 오고 있어요</p><div class="sub">320 m, 약 2분. 파리바게뜨 앞 인도에서 기다려 주세요.</div></div>
+            <div class="ph-plate"><div class="num">4568</div><div class="car"><b>아이오닉 9</b><span>번호판 끝 4자리를 먼저 확인하세요</span></div></div>
+            <div class="chips"><button class="chip" type="button">여기서 태워 주세요<span>내 위치 보냄</span></button><button class="chip" type="button">건너편으로 갈게요</button><button class="chip" type="button">2분만 기다려 주세요</button></div>
+          </div>
+        </div></div>
+        <figcaption><span><b>동승자 웹</b> 접근 중. 지도, 번호판, 제안 셋.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+      <figure class="frame">
+        <div class="stage phone"><div class="screen ph">
+          <div class="ph-top"><b>마중</b><span class="live"><i></i>연결됨</span></div>
+          <div class="ph-map"><svg class="map" viewBox="520 300 360 400" preserveAspectRatio="xMidYMid slice" role="img" aria-label="지도: 승차 지점 옆에 멈춘 차와 내 위치">
+            <use href="#streets" width="1280" height="720"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32"/>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="680" y="425" width="40" height="40" transform="rotate(90 700 445)"/>
+          </svg></div>
+          <div class="ph-body">
+            <div class="go"><p class="head">지금 타도 돼요</p><div class="sub">운전자가 주변을 확인했어요. 인도 쪽 오른쪽 문으로 타세요.</div></div>
+            <div class="ph-plate"><div class="num">4568</div><div class="car"><b>아이오닉 9</b><span>12 m 앞, 비상등 켜짐</span></div></div>
+            <div class="ph-fact"><span>조수석 문</span><b>잠금 해제됨</b></div>
+          </div>
+        </div></div>
+        <figcaption><span><b>동승자 웹</b> P단 정차 뒤. 제안 대신 문 상태.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ B ============================ -->
+<section class="wrap dir" data-dir="b" id="dir-b">
+  <div class="dir-head">
+    <div>
+      <h2>B. 계기판</h2>
+      <p class="lead">밤의 계기처럼 정확하게. 남색 바탕에 따뜻한 흰 잉크, 측정값은 Geist Mono로 단위와 함께, 모서리는 모두 각지고 선은 1px. 호박색이 행동을, 얼음색이 두 번째 상태를 표시합니다. Hallmark 테마 Rim, station 색상표.</p>
+    </div>
+    <ul>
+      <li><b>어울리는 점</b> 야간 운전에서 가장 또렷합니다. 모든 숫자가 단위를 달고, 꾸밈이 없습니다.</li>
+      <li><b>낮</b> 밤에서 파생한 남색 기운의 밝은 종이. 호스트 런처와 나란히 두면 조금 더 차갑습니다.</li>
+      <li><b>주의</b> Switzer 서체는 대체 서체(Host Grotesk)로 그렸습니다. 호박색은 밝은 종이 위에서 글자색으로 쓰지 않습니다.</li>
+    </ul>
+  </div>
+  <div class="frames">
+    <div class="row-ivi">
+      <figure class="frame">
+        <div class="stage"><div class="screen ivi">
+          <svg class="map" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" role="img" aria-label="지도: 서쪽에서 동쪽으로 가는 내 차, 파리바게뜨 앞 인도의 동승자, 승차 지점">
+            <use href="#streets" width="1280" height="720"/>
+            <path class="mk-route" d="M352 445 C 480 445, 560 462, 724 462"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32"/><text class="mk-label" x="770" y="472">승차 지점</text>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="310" y="425" width="40" height="40" transform="rotate(90 330 445)"/>
+          </svg>
+          <div class="plate ink status"><p class="head">지수님에게 가는 중</p><div class="fig">320<small>m</small></div><div class="meta">약 2분, 동승자 위치 3초 전</div></div>
+          <div class="live"><i></i>동승자 연결됨</div>
+          <div class="actions"><button class="btn" type="button">여기 못 서요</button><button class="btn quiet spacer" type="button">마중 종료</button></div>
+        </div></div>
+        <figcaption><span><b>차량 화면, 낮</b> 접근 중.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+      <figure class="frame">
+        <div class="stage"><div class="screen ivi">
+          <svg class="map" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" role="img" aria-label="지도: 승차 지점의 대안 두 곳, 건너편과 30 m 앞">
+            <use href="#streets" width="1280" height="720"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32"/>
+            <rect class="mk-pick-alt" x="724" y="382" width="32" height="32"/><text class="mk-label" x="770" y="406">건너편</text>
+            <rect class="mk-pick-alt" x="790" y="446" width="32" height="32"/><text class="mk-label" x="836" y="472">+30 m</text>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="600" y="425" width="40" height="40" transform="rotate(90 620 445)"/>
+          </svg>
+          <div class="plate ink status"><p class="head">여기 못 서요</p><div class="meta">어디서 태울까요? 동승자에게 바로 알립니다.</div></div>
+          <div class="sheet">
+            <button class="opt primary" type="button"><b>건너편에서</b><span>U턴, 약 1분</span></button>
+            <button class="opt" type="button"><b>앞으로 30 m</b><span>같은 쪽, 약 20초</span></button>
+            <button class="opt" type="button"><b>한 바퀴 돌고 올게요</b><span>약 3분</span></button>
+            <button class="btn quiet cancel" type="button">취소</button>
+          </div>
+        </div></div>
+        <figcaption><span><b>차량 화면, 낮</b> 대안 셋.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+      <figure class="frame">
+        <div class="stage"><div class="screen ivi night">
+          <svg class="map" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" role="img" aria-label="밤 지도: 승차 지점 옆에 멈춘 내 차와 동승자">
+            <use href="#streets" width="1280" height="720"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32"/>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="680" y="425" width="40" height="40" transform="rotate(90 700 445)"/>
+          </svg>
+          <div class="plate ink status"><p class="head">P단 정차. 주변을 확인하세요</p><div class="fig">12<small>m</small></div><div class="meta">동승자는 인도 쪽, 오른쪽 문으로 탑니다</div></div>
+          <div class="live"><i></i>동승자 연결됨</div>
+          <div class="card"><div class="who">지수님의 제안</div><div class="say">여기서 태워 주세요<span>앞으로 25 m, 약국 앞</span></div><div class="pair"><button class="btn primary" type="button">수락</button><button class="btn quiet" type="button">나중에</button></div></div>
+          <div class="actions"><button class="btn primary" type="button">주변 확인 끝, 문 열기</button><button class="btn quiet spacer" type="button">마중 종료</button></div>
+        </div></div>
+        <figcaption><span><b>차량 화면, 밤</b> P단 정차, 제안 카드, 승차 맞이.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+    </div>
+    <div class="row-phone">
+      <figure class="frame">
+        <div class="stage phone"><div class="screen ph">
+          <div class="ph-top"><b>마중</b><span class="live"><i></i>연결됨</span></div>
+          <div class="ph-map"><svg class="map" viewBox="300 250 560 500" preserveAspectRatio="xMidYMid slice" role="img" aria-label="지도: 오고 있는 차와 내 위치, 승차 지점">
+            <use href="#streets" width="1280" height="720"/>
+            <path class="mk-route" d="M352 445 C 480 445, 560 462, 724 462"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32"/>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="310" y="425" width="40" height="40" transform="rotate(90 330 445)"/>
+          </svg></div>
+          <div class="ph-body">
+            <div><p class="head">차가 오고 있어요</p><div class="sub">320 m, 약 2분. 파리바게뜨 앞 인도에서 기다려 주세요.</div></div>
+            <div class="ph-plate"><div class="num">4568</div><div class="car"><b>아이오닉 9</b><span>번호판 끝 4자리를 먼저 확인하세요</span></div></div>
+            <div class="chips"><button class="chip" type="button">여기서 태워 주세요<span>내 위치 보냄</span></button><button class="chip" type="button">건너편으로 갈게요</button><button class="chip" type="button">2분만 기다려 주세요</button></div>
+          </div>
+        </div></div>
+        <figcaption><span><b>동승자 웹</b> 접근 중.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+      <figure class="frame">
+        <div class="stage phone"><div class="screen ph">
+          <div class="ph-top"><b>마중</b><span class="live"><i></i>연결됨</span></div>
+          <div class="ph-map"><svg class="map" viewBox="520 300 360 400" preserveAspectRatio="xMidYMid slice" role="img" aria-label="지도: 승차 지점 옆에 멈춘 차와 내 위치">
+            <use href="#streets" width="1280" height="720"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32"/>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="680" y="425" width="40" height="40" transform="rotate(90 700 445)"/>
+          </svg></div>
+          <div class="ph-body">
+            <div class="go"><p class="head">지금 타도 돼요</p><div class="sub">운전자가 주변을 확인했어요. 인도 쪽 오른쪽 문으로 타세요.</div></div>
+            <div class="ph-plate"><div class="num">4568</div><div class="car"><b>아이오닉 9</b><span>12 m 앞, 비상등 켜짐</span></div></div>
+            <div class="ph-fact"><span>조수석 문</span><b>잠금 해제됨</b></div>
+          </div>
+        </div></div>
+        <figcaption><span><b>동승자 웹</b> P단 정차 뒤.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ C ============================ -->
+<section class="wrap dir" data-dir="c" id="dir-c">
+  <div class="dir-head">
+    <div>
+      <h2>C. 반투명 플라스틱</h2>
+      <p class="lead">아침 종이와 창가 빛, 둥근 플라스틱 키, 신호는 약국 초록 하나. 가장 부드럽고 친근합니다. 어르신과 아이를 마중하는 집의 물건처럼 보입니다. Hallmark 테마 Dose.</p>
+    </div>
+    <ul>
+      <li><b>어울리는 점</b> 동승자 웹이 가장 편안합니다. ‘지금 타도 돼요’의 초록이 그대로 신호가 됩니다.</li>
+      <li><b>밤</b> night 색상표. 플라스틱은 어두운 틴트로, 민트는 어두운 잉크 위의 밝은 띠로 바뀝니다.</li>
+      <li><b>주의</b> 둥근 모서리와 초록은 Pleos 런처의 각진 검은 판과 결이 다릅니다. 호스트 안에서는 ‘다른 앱’으로 보일 수 있습니다.</li>
+    </ul>
+  </div>
+  <div class="frames">
+    <div class="row-ivi">
+      <figure class="frame">
+        <div class="stage"><div class="screen ivi">
+          <svg class="map" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" role="img" aria-label="지도: 서쪽에서 동쪽으로 가는 내 차, 파리바게뜨 앞 인도의 동승자, 승차 지점">
+            <use href="#streets" width="1280" height="720"/>
+            <path class="mk-route" d="M352 445 C 480 445, 560 462, 724 462"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32" rx="10"/><text class="mk-label" x="770" y="472">승차 지점</text>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="310" y="425" width="40" height="40" transform="rotate(90 330 445)"/>
+          </svg>
+          <div class="plate ink status"><p class="head">지수님에게 가는 중</p><div class="fig">320<small>m</small></div><div class="meta">약 2분, 동승자 위치 3초 전</div></div>
+          <div class="live"><i></i>동승자 연결됨</div>
+          <div class="actions"><button class="btn" type="button">여기 못 서요</button><button class="btn quiet spacer" type="button">마중 종료</button></div>
+        </div></div>
+        <figcaption><span><b>차량 화면, 낮</b> 접근 중.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+      <figure class="frame">
+        <div class="stage"><div class="screen ivi">
+          <svg class="map" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" role="img" aria-label="지도: 승차 지점의 대안 두 곳, 건너편과 30 m 앞">
+            <use href="#streets" width="1280" height="720"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32" rx="10"/>
+            <rect class="mk-pick-alt" x="724" y="382" width="32" height="32" rx="10"/><text class="mk-label" x="770" y="406">건너편</text>
+            <rect class="mk-pick-alt" x="790" y="446" width="32" height="32" rx="10"/><text class="mk-label" x="836" y="472">+30 m</text>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="600" y="425" width="40" height="40" transform="rotate(90 620 445)"/>
+          </svg>
+          <div class="plate ink status"><p class="head">여기 못 서요</p><div class="meta">어디서 태울까요? 동승자에게 바로 알립니다.</div></div>
+          <div class="sheet">
+            <button class="opt primary" type="button"><b>건너편에서</b><span>U턴, 약 1분</span></button>
+            <button class="opt" type="button"><b>앞으로 30 m</b><span>같은 쪽, 약 20초</span></button>
+            <button class="opt" type="button"><b>한 바퀴 돌고 올게요</b><span>약 3분</span></button>
+            <button class="btn quiet cancel" type="button">취소</button>
+          </div>
+        </div></div>
+        <figcaption><span><b>차량 화면, 낮</b> 대안 셋.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+      <figure class="frame">
+        <div class="stage"><div class="screen ivi night">
+          <svg class="map" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" role="img" aria-label="밤 지도: 승차 지점 옆에 멈춘 내 차와 동승자">
+            <use href="#streets" width="1280" height="720"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32" rx="10"/>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="680" y="425" width="40" height="40" transform="rotate(90 700 445)"/>
+          </svg>
+          <div class="plate ink status"><p class="head">P단 정차. 주변을 확인하세요</p><div class="fig">12<small>m</small></div><div class="meta">동승자는 인도 쪽, 오른쪽 문으로 탑니다</div></div>
+          <div class="live"><i></i>동승자 연결됨</div>
+          <div class="card"><div class="who">지수님의 제안</div><div class="say">여기서 태워 주세요<span>앞으로 25 m, 약국 앞</span></div><div class="pair"><button class="btn primary" type="button">수락</button><button class="btn quiet" type="button">나중에</button></div></div>
+          <div class="actions"><button class="btn primary" type="button">주변 확인 끝, 문 열기</button><button class="btn quiet spacer" type="button">마중 종료</button></div>
+        </div></div>
+        <figcaption><span><b>차량 화면, 밤</b> P단 정차, 제안 카드, 승차 맞이.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+    </div>
+    <div class="row-phone">
+      <figure class="frame">
+        <div class="stage phone"><div class="screen ph">
+          <div class="ph-top"><b>마중</b><span class="live"><i></i>연결됨</span></div>
+          <div class="ph-map"><svg class="map" viewBox="300 250 560 500" preserveAspectRatio="xMidYMid slice" role="img" aria-label="지도: 오고 있는 차와 내 위치, 승차 지점">
+            <use href="#streets" width="1280" height="720"/>
+            <path class="mk-route" d="M352 445 C 480 445, 560 462, 724 462"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32" rx="10"/>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="310" y="425" width="40" height="40" transform="rotate(90 330 445)"/>
+          </svg></div>
+          <div class="ph-body">
+            <div><p class="head">차가 오고 있어요</p><div class="sub">320 m, 약 2분. 파리바게뜨 앞 인도에서 기다려 주세요.</div></div>
+            <div class="ph-plate"><div class="num">4568</div><div class="car"><b>아이오닉 9</b><span>번호판 끝 4자리를 먼저 확인하세요</span></div></div>
+            <div class="chips"><button class="chip" type="button">여기서 태워 주세요<span>내 위치 보냄</span></button><button class="chip" type="button">건너편으로 갈게요</button><button class="chip" type="button">2분만 기다려 주세요</button></div>
+          </div>
+        </div></div>
+        <figcaption><span><b>동승자 웹</b> 접근 중.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+      <figure class="frame">
+        <div class="stage phone"><div class="screen ph">
+          <div class="ph-top"><b>마중</b><span class="live"><i></i>연결됨</span></div>
+          <div class="ph-map"><svg class="map" viewBox="520 300 360 400" preserveAspectRatio="xMidYMid slice" role="img" aria-label="지도: 승차 지점 옆에 멈춘 차와 내 위치">
+            <use href="#streets" width="1280" height="720"/>
+            <rect class="mk-pick" x="724" y="446" width="32" height="32" rx="10"/>
+            <use href="#pax" x="736" y="446" width="80" height="80"/>
+            <use href="#car" x="680" y="425" width="40" height="40" transform="rotate(90 700 445)"/>
+          </svg></div>
+          <div class="ph-body">
+            <div class="go"><p class="head">지금 타도 돼요</p><div class="sub">운전자가 주변을 확인했어요. 인도 쪽 오른쪽 문으로 타세요.</div></div>
+            <div class="ph-plate"><div class="num">4568</div><div class="car"><b>아이오닉 9</b><span>12 m 앞, 비상등 켜짐</span></div></div>
+            <div class="ph-fact"><span>조수석 문</span><b>잠금 해제됨</b></div>
+          </div>
+        </div></div>
+        <figcaption><span><b>동승자 웹</b> P단 정차 뒤.</span><button class="zoom" type="button">크게 보기</button></figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section class="wrap compare">
+  <h2>나란히 놓고 보면</h2>
+  <div class="compare-table">
+    <table>
+      <thead><tr><th>기준</th><th>A. 사인보드</th><th>B. 계기판</th><th>C. 반투명 플라스틱</th></tr></thead>
+      <tbody>
+        <tr><td>2 m 밖에서 읽기</td><td>숫자가 가장 먼저 보임 (고정폭 800)</td><td>또렷하지만 획이 가늘어 낮에는 한 단계 약함</td><td>부드러운 획, 큰 숫자는 무난</td></tr>
+        <tr><td>Pleos 런처와의 결</td><td>검은 판과 각진 선을 그대로 이음</td><td>각진 선은 같고 바탕은 더 차가움</td><td>둥근 모서리와 초록이 호스트와 다름</td></tr>
+        <tr><td>밤 모드</td><td>night 색상표, 파랑이 밝아짐</td><td>밤이 본래 모습, 가장 안정적</td><td>night 색상표, 플라스틱 틴트가 어두워짐</td></tr>
+        <tr><td>동승자 웹의 인상</td><td>정류장 안내판, 명확함</td><td>계기, 정확함</td><td>집 안의 물건, 따뜻함</td></tr>
+        <tr><td>구현 (Compose와 웹)</td><td>단색과 테두리만, 가장 단순</td><td>단색과 1px 선, 단순</td><td>그림자와 틴트 레이어가 늘어남</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="wrap pick">
+  <div>
+    <h2>추천은 A, 사인보드</h2>
+    <p class="lead">Pleos 런처의 검은 판과 각진 선을 그대로 이어 받아 차 안에서 ‘원래 있던 앱’처럼 보이고, 고정폭 숫자가 2 m 밖에서도 먼저 읽힙니다. 동승자 웹은 같은 토큰의 낮 모드를 써서 두 화면이 한 벌로 보입니다.</p>
+  </div>
+  <div>
+    <div class="mark">A</div>
+    <ol>
+      <li>밤 주행이 대부분이면 B를 고르세요. 밤이 본래 모습입니다.</li>
+      <li>동승자 웹의 친근함이 가장 중요하면 C를 고르세요.</li>
+      <li>답이 없으면 A로 구현합니다. 세 방향 모두 같은 데이터와 화면 구성을 쓰므로 뒤에 바꿔도 레이아웃은 그대로입니다.</li>
+    </ol>
+  </div>
+</section>
+
+<dialog class="lens" id="lens">
+  <div class="lens-bar"><span id="lens-title">크게 보기</span><button class="zoom" type="button" id="lens-close">닫기</button></div>
+  <div class="lens-body" id="lens-body"></div>
+</dialog>
+
+<script>
+(function () {
+  var stages = document.querySelectorAll('.stage');
+  var ro = new ResizeObserver(function (entries) {
+    entries.forEach(function (e) {
+      var w = Number(e.target.style.getPropertyValue('--w') || getComputedStyle(e.target).getPropertyValue('--w')) || 1280;
+      e.target.style.setProperty('--s', (e.contentRect.width / w).toFixed(4));
+    });
+  });
+  stages.forEach(function (s) { ro.observe(s); });
+  var lens = document.getElementById('lens'), body = document.getElementById('lens-body'), title = document.getElementById('lens-title');
+  document.querySelectorAll('figure.frame .zoom').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var fig = btn.closest('figure'), screen = fig.querySelector('.screen'), dir = fig.closest('[data-dir]');
+      body.innerHTML = '';
+      var holder = document.createElement('div');
+      holder.setAttribute('data-dir', dir.getAttribute('data-dir'));
+      holder.appendChild(screen.cloneNode(true));
+      body.appendChild(holder);
+      title.textContent = fig.querySelector('figcaption span').textContent;
+      lens.showModal();
+    });
+  });
+  document.getElementById('lens-close').addEventListener('click', function () { lens.close(); });
+  lens.addEventListener('click', function (e) { if (e.target === lens) lens.close(); });
+})();
+</script>

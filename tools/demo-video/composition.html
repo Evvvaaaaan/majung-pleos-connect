@@ -41,7 +41,7 @@
   .demo .ivi .tag { position: absolute; left: 20px; top: 16px; background: rgba(11,15,20,.78); border: 1px solid #2A333F; color: var(--white); font-size: 16px; font-weight: 700; padding: 8px 14px; border-radius: 999px; }
   .demo .ivi .tag.real { background: rgba(0,170,210,.92); color: var(--ink); border-color: transparent; }
   .demo .phone { position: absolute; left: 1398px; top: 118px; width: 430px; height: 862px; border-radius: 48px; background: #111; border: 10px solid #1C2430; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
-  .demo .phone iframe { width: 410px; height: 842px; border: 0; display: block; background: #F6F3EF; }
+  .demo .phone iframe { width: 410px; height: 842px; border: 0; display: block; background: #F5F7FA; }
   .demo .phone .tag { position: absolute; left: 50%; transform: translateX(-50%); bottom: 16px; background: rgba(0,44,95,.92); color: #fff; font-size: 14px; font-weight: 700; padding: 6px 12px; border-radius: 999px; white-space: nowrap; }
   .caption { position: absolute; left: 56px; bottom: 60px; width: 1284px; display: flex; align-items: center; gap: 18px; opacity: 0; transform: translateY(16px); }
   .caption .n { flex: none; width: 56px; height: 56px; border-radius: 50%; background: var(--active); color: var(--ink); font-weight: 800; font-size: 26px; display: flex; align-items: center; justify-content: center; }
@@ -93,18 +93,18 @@
   <section class="layer arch" id="L-arch">
     <h2>신호가 흐름을 움직입니다 — 운전자가 누르는 버튼은 하나</h2>
     <div class="flow">
-      <div class="node" id="n1"><div class="h">Vehicle SDK · AAOS</div><div class="d">gear · brake · steering · wiper · turn signal<br/>door×4 · seat×3 · belt×3 · low beam<br/>PERF_VEHICLE_SPEED · FusedLocation · NaviHelper TBT</div></div>
+      <div class="node" id="n1"><div class="h">Vehicle SDK · AAOS</div><div class="d">gear · brake · steering · wiper · turn signal<br/>door×4 · seat×3 · belt×3 · low beam<br/>PERF_VEHICLE_SPEED · FusedLocation · NaviHelper 경로/재경로</div></div>
       <div class="arrow" id="a1">→</div>
       <div class="node" id="n2"><div class="h">VehicleSignalHub</div><div class="d">콜백을 하나의 StateFlow로 합치고<br/>조향 각속도·추정 차속 계산</div></div>
       <div class="arrow" id="a2">→</div>
-      <div class="node" id="n3"><div class="h">SignalDrivenPickupCoordinator</div><div class="d">신호 변화(edge)로 6단계 자동 전진<br/>운전 부하 ≥ 0.45 → 안내 보류</div></div>
+      <div class="node" id="n3"><div class="h">SignalDrivenPickupCoordinator</div><div class="d">신호 변화(edge)로 6단계 자동 전진<br/>'여기 못 서요' 3안 · 동승자 제안 수락 → 승차 지점·재경로</div></div>
       <div class="arrow" id="a3">→</div>
-      <div class="node" id="n4"><div class="h">동승자 웹 · 차량 제어</div><div class="d">VehicleFacts만 전달(원시 좌표 폐기)<br/>잠금 해제·창문·독서등·공조 → 원복</div></div>
+      <div class="node" id="n4"><div class="h">동승자 웹 · 차량 제어</div><div class="d">지도(차·동승자·승차 지점) + VehicleFacts를 SSE로<br/>잠금 해제·창문·독서등·공조 → 원복</div></div>
     </div>
     <div class="proof">
-      <div id="p1"><b>검증</b><p>Pleos Connect v2.1.0 에뮬레이터: SDK 콜백 16종 수신 · 도어/창문/독서등 제어 onComplete<br/>유닛 테스트 15건 · 중계 서버 E2E · sim/pleos 릴리스 APK</p></div>
-      <div id="p2"><b>안전 설계</b><p>원격 도어 개방 없음(잠금 해제만, P단 + 운전자 확인 후)<br/>동승자 폰 GPS 미수집 · 링크 20분 TTL · 탑승 즉시 파기</p></div>
-      <div id="p3"><b>호환성</b><p>checkXXXCapabilities로 트림별 영역·범위 조회(DOOR_LOCK 묶음 영역, 창문 0~10 스케일 환산)<br/>Pleos TTS 실패 시 Android TTS 폴백</p></div>
+      <div id="p1"><b>검증</b><p>Pleos Connect v2.1.0 에뮬레이터: SDK 콜백 16종 수신 · 도어/창문/독서등 제어 onComplete<br/>유닛 테스트 24건 · 중계 서버 E2E · sim/pleos 릴리스 APK</p></div>
+      <div id="p2"><b>안전 설계</b><p>원격 도어 개방 없음(잠금 해제만, P단 + 운전자 확인 후)<br/>동승자 위치는 동의 시 세션 동안만 메모리 보관 · 링크 20분 TTL · 탑승 즉시 파기</p></div>
+      <div id="p3"><b>호환성</b><p>checkXXXCapabilities로 트림별 영역·범위 조회(DOOR_LOCK 묶음 영역, 창문 0~10 스케일 환산)<br/>Pleos TTS 실패 시 Android TTS 폴백 · 낮/밤 토큰(하향등 연동)</p></div>
     </div>
   </section>
 
@@ -150,7 +150,7 @@ async function init() {
       const d = TL.demos[i]; buildDemo(d, i);
       const v = $(`rec${i}`); v.src = d.video;
       await new Promise((r, j) => { v.onloadedmetadata = r; v.onerror = () => j(new Error("video load error " + d.video)); v.load(); });
-      const w = $(`web${i}`); w.src = TL.web || "web.html";
+      const w = $(`web${i}`); w.src = (TL.web || "web.html") + (TL.webQuery || "");
       await new Promise((r) => { w.onload = r; });
     }
     window.__ready = true;

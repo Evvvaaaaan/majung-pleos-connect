@@ -56,7 +56,36 @@ MajungFlow: 수동 탑승 확인 → 창문·조명·공조 원복 · 세션 즉
 | 차량 서비스가 화면 꺼짐 이후 응답하지 않는 경우 있음 (`Car.createCar() == null`) | 콜드 부팅으로 복구. 앱은 AAOS 차속 실패 시 FusedLocation 추정 차속으로 폴백 |
 | `NaviHelper.requestRoute` 호출 시 내비 앱이 전면으로 전환 | 정상 동작(경로 설정). 시연에서는 앱을 다시 전면으로 호출 |
 
-## 5. 재현 절차
+## 5. v3 (지도 중심 화면) 추가 검증 — 2026-11-14, 같은 에뮬레이터, `app-pleos-debug.apk`
+
+앱은 Pleos 런처의 오른쪽 앱 영역(1707×1210 px)에 임베드되어 실행된다. 아래는 `tools/demo-video/pleos_flow.sh` 로 녹화한 시연에서 실제로 난 로그다
+(원본: `pleos_emulator_logcat_v3.txt`, 중계 서버 타임라인: `pleos_emulator_relay_timeline_v3.jsonl` — 세션 시작 4.3초 → 동승자 위치 14.5초 → 승차 지점 이동 25.2초 → 제안 수락 41.8초 → 접근 44.9초 → P단 정차 49.2초 → 문 열기 56.8초 → 환대 65.8초 → 파기 74.0초, 단계 시각: `pleos_flow_taps_v3.json`).
+
+| 확인 항목 | 결과 |
+| :-- | :-- |
+| OSM 지도 타일 로드 (osmdroid, `tile.openstreetmap.org`) | 에뮬레이터 네트워크로 로드됨. 하향등 ON 시 색 행렬 필터로 어두운 지도 |
+| 동승자 위치 수신 | 동승자 웹(또는 `POST /api/v1/sessions/:id/passenger-location`) → 중계 SSE `PASSENGER_LOCATION` → 지도에 먹색 점 + 정확도 원, 연결 칩 "동승자 연결됨" |
+| 동승자 간편 제안 | `POST /suggest` → SSE `PASSENGER_SUGGESTION` → IVI 카드 "지수님의 제안 / 2분만 기다려 주세요" → [수락] → 중계 상태 `suggestionReply=ACCEPTED` (타임라인 65.9초) |
+| 여기 못 서요 → 앞으로 30 m | 승차 지점 이동(`pickupVersion` 1→2), `NaviHelper.requestRoute` 재호출(내비 앱 전면 전환 후 복귀), 상태 판에 "앞으로 30 m" |
+| 차량 위치 (디버그 adb 훅) | `am broadcast -a io.majung.pleos.DEBUG_LOCATION` → `MajungHub: [DEBUG adb] location(37.49880, 127.05800, heading=90.0)` → 지도 파란 원 마커, 거리 숫자 |
+| 접근 감지 → P단 정차 | `접근 감지 · 반경 60m 감속 + 우측 방향지시등 진입 감지` → 기어 P + 차속 0 → `P단 정차 확정` → 중계 `phase=STEP4_CURBSIDE_STOPPED, stoppedInPark=true` |
+| 하향등 ON → 밤 화면 | `lowBeam=ON` 콜백으로 밤 토큰(검은 판 → 흰 판, 지도 필터) 전환 |
+
+```
+MajungFlow: 주변 확인 완료 · 도어 잠금 해제 · 조수석 창문 25% 개방
+MajungFlow: door.setDoorLock(ROW_1_LEFT+ROW_1_RIGHT+ROW_2_LEFT+ROW_2_RIGHT, value=false) -> onComplete(locked=false)
+MajungFlow: window.setWindowPosition(ROW_1_RIGHT, raw=2 of 0..10) -> onComplete(20%)
+MajungFlow: light.setReadingLightSwitch(ROW_1_RIGHT, ON) -> onComplete(ON)
+MajungFlow: 착좌 감지 → 환대 인사: 지수님, 반갑습니다.
+MajungFlow: 수동 탑승 확인 → 창문·조명·공조 원복 · 세션 즉시 파기          → 중계 SESSION_SHREDDED
+```
+
+추가로 확인한 제약:
+- `NaviHelper.requestRoute`(세션 시작·재경로)마다 호스트 내비 앱이 전면으로 온다. 시연 절차는 호출 뒤 `am start`로 마중 화면을 다시 앞으로 가져온다.
+- Virtual Console의 차속은 0을 넣어도 서서히 줄어 `stoppedInPark`까지 7~14초가 걸린다. 시연 절차는 중계 상태의 `stoppedInPark`를 기다린다.
+- 세션 시작 시 직전 좌표가 승차 지점 60 m 안에 남아 있으면 시작 직후 정차로 판정된다(단계는 뒤로 돌아가지 않음). 시연 절차는 시작 전에 320 m 서쪽, 기어 D로 둔다.
+
+## 6. 재현 절차
 
 ```bash
 # 1) 이미지 설치 (42dot SDK 라이선스 동의 필요)
@@ -73,4 +102,7 @@ curl -X PUT "http://127.0.0.1:8088/vehicle/gear?gear=Park"
 curl -X PUT "http://127.0.0.1:8088/vehicle/body?door_rl=true"
 # 5) 로그
 adb logcat -s MajungSDK:I MajungHub:I MajungFlow:I
+# 6) v3 전체 시연(녹화 + 중계 타임라인 + 단계 시각): 디버그 APK 설치 후
+adb install -r -t app/build/outputs/apk/pleos/debug/app-pleos-debug.apk
+tools/demo-video/pleos_flow.sh <work-dir>
 ```

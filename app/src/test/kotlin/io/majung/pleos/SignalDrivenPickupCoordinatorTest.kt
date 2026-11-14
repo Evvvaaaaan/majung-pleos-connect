@@ -7,6 +7,7 @@ import io.majung.pleos.audio.VehicleAudioPlatform
 import io.majung.pleos.finder.CurbsideCarFinderEngine
 import io.majung.pleos.finder.PleosTurnSignalState
 import io.majung.pleos.model.GearPosition
+import io.majung.pleos.model.LiveMapState
 import io.majung.pleos.model.PickupPhase
 import io.majung.pleos.model.PickupSessionShareTicket
 import io.majung.pleos.model.SafePitstopStop
@@ -52,8 +53,9 @@ class SignalDrivenPickupCoordinatorTest {
         val relay = object : RelayNotificationGateway {
             override suspend fun publishSessionState(
                 ticket: PickupSessionShareTicket, stop: SafePitstopStop, remainingSeconds: Int, phase: PickupPhase,
-                boardingDoorUnlocked: Boolean, welcomeGreetingActive: Boolean, facts: VehicleFacts
+                boardingDoorUnlocked: Boolean, welcomeGreetingActive: Boolean, facts: VehicleFacts, liveMap: LiveMapState
             ): Boolean { published += phase to facts; return true }
+            override suspend fun replySuggestion(sessionId: String, suggestionId: String, accepted: Boolean) = true
             override suspend fun sendKidsFallbackSms(stop: SafePitstopStop, smsBody: String) = true
             override suspend fun shredEphemeralSession(sessionId: String): Boolean { shreddedId = sessionId; return true }
         }

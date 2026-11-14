@@ -3,13 +3,20 @@ package io.majung.pleos.orchestrator
 import io.majung.pleos.audio.AudioFocusCoordinator
 import io.majung.pleos.finder.CurbsideCarFinderEngine
 import io.majung.pleos.finder.ManualOffsetPreset
+import io.majung.pleos.finder.bearingDeg
+import io.majung.pleos.finder.offsetPoint
 import io.majung.pleos.finder.PleosTurnSignalState
+import io.majung.pleos.model.CannotStopOption
 import io.majung.pleos.model.GearPosition
+import io.majung.pleos.model.GeoPoint
+import io.majung.pleos.model.LiveMapState
 import io.majung.pleos.model.LocationReliability
+import io.majung.pleos.model.PassengerSuggestion
 import io.majung.pleos.model.PickupPhase
 import io.majung.pleos.model.PickupSessionShareTicket
 import io.majung.pleos.model.RecipientChannel
 import io.majung.pleos.model.SafePitstopStop
+import io.majung.pleos.model.SuggestionKind
 import io.majung.pleos.model.VehicleFacts
 import io.majung.pleos.safety.DrivingLoadGate
 import io.majung.pleos.safety.DrivingLoadSnapshot
@@ -41,8 +48,12 @@ interface RelayNotificationGateway {
         phase: PickupPhase,
         boardingDoorUnlocked: Boolean = false,
         welcomeGreetingActive: Boolean = false,
-        facts: VehicleFacts = VehicleFacts()
+        facts: VehicleFacts = VehicleFacts(),
+        liveMap: LiveMapState = LiveMapState()
     ): Boolean
+
+    /** 동승자 제안에 대한 운전자 응답을 중계 서버에 전달한다. */
+    suspend fun replySuggestion(sessionId: String, suggestionId: String, accepted: Boolean): Boolean
 
     suspend fun sendKidsFallbackSms(stop: SafePitstopStop, smsBody: String): Boolean
     suspend fun shredEphemeralSession(sessionId: String): Boolean
@@ -60,7 +71,9 @@ data class ActiveSessionUiState(
     val lastBannerMessage: String = "",
     val boardingDoorUnlocked: Boolean = false,
     val welcomeGreetingActive: Boolean = false,
-    val vehicleFacts: VehicleFacts = VehicleFacts()
+    val vehicleFacts: VehicleFacts = VehicleFacts(),
+    val liveMap: LiveMapState = LiveMapState(),
+    val pendingSuggestion: PassengerSuggestion? = null
 ) {
     val isSessionActive: Boolean
         get() = phase != PickupPhase.IDLE && phase != PickupPhase.STEP6_COMPLETED_SHREDDED
@@ -120,9 +133,17 @@ class PickupEtaOrchestrator(
         dispatchSlidingNaviWindow(listOf(firstStop) + tailStops)
 
         val facts = _uiState.value.vehicleFacts.copy(signalSource = runtimeSourceBadge)
+        val liveMap = LiveMapState(
+            car = _uiState.value.liveMap.car,
+            carHeadingDeg = _uiState.value.liveMap.carHeadingDeg,
+            carUpdatedAtMs = _uiState.value.liveMap.carUpdatedAtMs,
+            pickup = GeoPoint(firstStop.latitude, firstStop.longitude),
+            pickupLabel = firstStop.landmarkSignboard,
+            pickupVersion = 1
+        )
         when (firstStop.channel) {
             RecipientChannel.ZERO_INSTALL_WEB ->
-                relayGateway.publishSessionState(ticket, firstStop, 180, PickupPhase.STEP1_LANDMARK_AGREED, facts = facts)
+                relayGateway.publishSessionState(ticket, firstStop, 180, PickupPhase.STEP1_LANDMARK_AGREED, facts = facts, liveMap = liveMap)
             RecipientChannel.KIDS_SMS ->
                 relayGateway.sendKidsFallbackSms(firstStop, ticket.buildCompactFallbackSms(3))
         }
@@ -141,9 +162,12 @@ class PickupEtaOrchestrator(
             activeTicket = ticket,
             remainingEtaSeconds = 180,
             lastBannerMessage = schoolNotice,
-            vehicleFacts = facts
+            vehicleFacts = facts,
+            liveMap = liveMap
         )
         _uiState.value = state
+        lastCarPublishMs = nowMs
+        lastPublishedPickupVersion = 1
 
         deliverThroughGate(
             GatedPrompt(
@@ -227,7 +251,8 @@ class PickupEtaOrchestrator(
             phase = nextPhase,
             boardingDoorUnlocked = current.boardingDoorUnlocked,
             welcomeGreetingActive = current.welcomeGreetingActive,
-            facts = current.vehicleFacts
+            facts = current.vehicleFacts,
+            liveMap = current.liveMap
         )
 
         _uiState.value = current.copy(
@@ -255,7 +280,8 @@ class PickupEtaOrchestrator(
             phase = nextPhase,
             boardingDoorUnlocked = doorUnlockedInPark,
             welcomeGreetingActive = welcomeGreetingActive,
-            facts = current.vehicleFacts
+            facts = current.vehicleFacts,
+            liveMap = current.liveMap
         )
         _uiState.value = current.copy(
             phase = nextPhase,
@@ -282,9 +308,122 @@ class PickupEtaOrchestrator(
             phase = current.phase,
             boardingDoorUnlocked = current.boardingDoorUnlocked,
             welcomeGreetingActive = current.welcomeGreetingActive,
-            facts = facts
+            facts = facts,
+            liveMap = current.liveMap
         )
         return true
+    }
+
+    private var lastCarPublishMs: Long? = null
+    private var lastPublishedPickupVersion = 1
+
+    /** 차량 위치 갱신. 지도 데이터만 바꾸며 단계 전이는 건드리지 않는다. 2초마다(픽업 지점이 바뀌면 즉시) 동승자 웹으로 전송. */
+    suspend fun updateCarLocation(point: GeoPoint, headingDeg: Double?, nowMs: Long) {
+        val current = _uiState.value
+        val map = current.liveMap.copy(car = point, carHeadingDeg = headingDeg ?: current.liveMap.carHeadingDeg, carUpdatedAtMs = nowMs)
+        _uiState.value = current.copy(liveMap = map)
+        if (!current.isSessionActive) return
+        if (lastCarPublishMs.let { it == null || nowMs - it >= CAR_PUBLISH_INTERVAL_MS } || map.pickupVersion != lastPublishedPickupVersion) {
+            publishCurrent(nowMs)
+        }
+    }
+
+    /** 동승자 위치는 동승자 폰이 이미 알고 있으므로 지도 상태만 갱신하고 다시 보내지 않는다. */
+    fun onPassengerLocation(point: GeoPoint, accuracyM: Double?, nowMs: Long) {
+        val current = _uiState.value
+        _uiState.value = current.copy(
+            liveMap = current.liveMap.copy(passenger = point, passengerAccuracyM = accuracyM, passengerUpdatedAtMs = nowMs)
+        )
+    }
+
+    fun onPassengerSuggestion(s: PassengerSuggestion) {
+        val stop = _uiState.value.currentStop ?: return
+        _uiState.value = _uiState.value.copy(pendingSuggestion = s)
+        emitPickupPrompt("suggestion", "${stop.passengerName}님 제안: ${s.text}", s.atMs)
+        if (s.kind == SuggestionKind.READY) {
+            _uiState.value = _uiState.value.copy(lastBannerMessage = "${stop.passengerName}님이 준비 완료를 알렸어요")
+        }
+    }
+
+    /** 운전자가 동승자 제안을 수락/거절. 응답은 항상 동승자에게 전달하고 대기 제안을 비운다. */
+    suspend fun resolvePendingSuggestion(accept: Boolean) {
+        val s = _uiState.value.pendingSuggestion ?: return
+        if (accept) {
+            when {
+                s.kind == SuggestionKind.PICKUP_HERE && s.point != null ->
+                    movePickup(s.point, "동승자 위치", "동승자 위치에서 태웁니다")
+                s.kind == SuggestionKind.OTHER_SIDE -> applyCannotStopOption(CannotStopOption.OTHER_SIDE_UTURN, s.atMs)
+                else -> _uiState.value = _uiState.value.copy(
+                    liveMap = _uiState.value.liveMap.copy(pickupNote = "동승자: ${s.text}".take(80))
+                )
+            }
+        }
+        _uiState.value = _uiState.value.copy(pendingSuggestion = null)
+        val sessionId = _uiState.value.sessionId
+        relayGateway.replySuggestion(sessionId, s.id, accept)
+        publishCurrent()
+    }
+
+    /** "여기 못 세워요" 대안 적용. 진행 중인 세션이 없으면 false. */
+    suspend fun applyCannotStopOption(option: CannotStopOption, nowMs: Long): Boolean {
+        val current = _uiState.value
+        val pickup = current.liveMap.pickup
+        if (!current.isSessionActive || current.currentStop == null || pickup == null) return false
+        val heading = current.liveMap.carHeadingDeg
+            ?: current.liveMap.car?.let { bearingDeg(it, pickup) }
+            ?: 0.0
+        when (option) {
+            CannotStopOption.AHEAD_30M ->
+                movePickup(offsetPoint(pickup, heading, 30.0), option.labelKo, "앞으로 30 m 이동해서 태울게요")
+            CannotStopOption.OTHER_SIDE_UTURN ->
+                // 우측통행: 건너편 갓길은 진행 방향의 왼쪽(heading - 90°)
+                movePickup(offsetPoint(pickup, heading - 90.0, 14.0), option.labelKo, "건너편에서 태울게요 (U턴)")
+            CannotStopOption.LOOP_AROUND ->
+                _uiState.value = current.copy(liveMap = current.liveMap.copy(pickupNote = "한 바퀴 돌고 다시 올게요 (약 3분)"))
+        }
+        publishCurrent(nowMs)
+        emitPickupPrompt(
+            "cannot_stop",
+            when (option) {
+                CannotStopOption.AHEAD_30M -> "앞으로 30미터 더 가서 세우겠습니다."
+                CannotStopOption.OTHER_SIDE_UTURN -> "건너편으로 U턴해서 세우겠습니다."
+                CannotStopOption.LOOP_AROUND -> "한 바퀴 돌고 다시 오겠습니다."
+            },
+            nowMs
+        )
+        return true
+    }
+
+    /** 픽업 지점을 옮기고 버전을 올리며 내비 경로를 다시 요청한다. 발행은 호출자가 한다. */
+    private suspend fun movePickup(point: GeoPoint, label: String, note: String) {
+        val current = _uiState.value
+        val stop = current.currentStop ?: return
+        val moved = stop.copy(latitude = point.lat, longitude = point.lng)
+        _uiState.value = current.copy(
+            currentStop = moved,
+            liveMap = current.liveMap.copy(
+                pickup = point, pickupLabel = label, pickupNote = note, pickupVersion = current.liveMap.pickupVersion + 1
+            )
+        )
+        naviGateway.dispatchRouteWithWaypoints(buildNaviRouteSlice(listOf(moved)))
+    }
+
+    private suspend fun publishCurrent(nowMs: Long? = null) {
+        val current = _uiState.value
+        val stop = current.currentStop ?: return
+        val ticket = current.activeTicket ?: return
+        if (nowMs != null) lastCarPublishMs = nowMs
+        lastPublishedPickupVersion = current.liveMap.pickupVersion
+        relayGateway.publishSessionState(
+            ticket = ticket,
+            stop = stop,
+            remainingSeconds = current.remainingEtaSeconds,
+            phase = current.phase,
+            boardingDoorUnlocked = current.boardingDoorUnlocked,
+            welcomeGreetingActive = current.welcomeGreetingActive,
+            facts = current.vehicleFacts,
+            liveMap = current.liveMap
+        )
     }
 
     /** 차도 쪽 문 열림처럼 즉시 발화해야 하는 안전 경고. DLI 게이트를 우회(CRITICAL)한다. */
@@ -409,5 +548,9 @@ class PickupEtaOrchestrator(
             text = prompt.spokenText,
             isCriticalSafety = (prompt.priority == PromptPriority.CRITICAL_INTERLOCK)
         )
+    }
+
+    companion object {
+        const val CAR_PUBLISH_INTERVAL_MS = 2_000L
     }
 }
