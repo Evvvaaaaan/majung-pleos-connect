@@ -23,7 +23,7 @@
 
 <p><img src="docs/screenshots/passenger_web_v3.png" width="300" alt="동승자 무설치 웹 — 지도, 번호판, 간편 제안" /> <img src="docs/screenshots/pleos_emulator_v3_night_stop.png" width="620" alt="Pleos 에뮬레이터 · 하향등 ON 밤 화면 · P단 정차 · 주변 확인 끝, 문 열기" /></p>
 
-<p><img src="docs/screenshots/pleos_emulator_v3_cantstop.png" width="460" alt="여기 못 서요: 건너편(U턴) / 앞으로 30 m / 한 바퀴" /> <img src="docs/screenshots/pleos_emulator_v3_suggestion.png" width="460" alt="동승자 제안 카드: 2분만 기다려 주세요, 수락/나중에" /></p>
+<p><img src="docs/screenshots/pleos_emulator_v3_cantstop.png" width="460" alt="여기 못 서요: 건너편(U턴) / 앞으로 30 m / 한 바퀴" /> <img src="docs/screenshots/pleos_emulator_v3_suggestion.png" width="460" alt="동승자가 지도에서 고른 자리(마중 심볼)와 제안 카드: 여기서 탈게요, 승차 지점에서 57 m, 수락/나중에" /></p>
 
 **시연 영상:** `docs/demo/majung_demo.mp4` (약 2분 40초 · 1080p). **Pleos Connect v2.1.0 전용 에뮬레이터에서 pleos 빌드 실녹화**(런처 오른쪽 앱 영역) — Virtual Console로 주입한 실제 Vehicle SDK 콜백(기어·차속·방향지시등·도어·착좌·하향등)과 실제 제어 호출(도어 잠금 해제·창문·독서등 `onComplete`), 동승자 위치·간편 제안·'여기 못 서요' 재경로, 낮/밤 전환, 동승자 웹 실시간 중계 상태 동기 재생 + 모션 그래픽 해설·내레이션. 차량 위치만은 Pleos 에뮬레이터에 주입 수단이 없어 디버그 빌드의 adb 훅으로 넣었습니다(4-2절). 재현: `tools/demo-video/pleos_flow.sh` → `tools/demo-video/render.mjs`
 
@@ -107,6 +107,7 @@ node relay-server/verify_e2e_sse.mjs          # 중계 서버 E2E: 좌표 필드
 PORT=8080 node relay-server/server.mjs
 # 에뮬레이터는 http://10.0.2.2:8080 으로 자동 연결, 브라우저는 http://localhost:8080/m/<sessionId>
 ```
+- 공개 서버로 올릴 때: `docker build -f relay-server/Dockerfile -t majung-relay . && docker run -p 8080:8080 majung-relay` (Fly.io·Render 같은 컨테이너 호스팅에 그대로 올라감, 인스턴스 1개). 올린 HTTPS 주소를 차량 앱 **설정**의 중계 서버 주소에 넣으면 폰에서 QR로 열고 위치 공유까지 됩니다.
 
 ### 4-2. Pleos Connect Emulator — pleos 플레이버 (검증 완료)
 - 검증 환경: **Pleos Connect Emulator v2.1.0** (`system-images;android-34;pleos_car_emulator;arm64-v8a`, Android API 34, Cold boot, RAM 4GB, 화면 2560×1440 @160dpi, `-gpu host`, macOS Apple Silicon)
