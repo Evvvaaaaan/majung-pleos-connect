@@ -4,7 +4,7 @@
 
 - 01 참가신청서 · 03/04 동의·서명은 개인정보라 비워 둔다(참가자가 직접 기입·서명).
 - 앱명 / 프로젝트명 공란만 "마중 (MAJUNG)"으로 채운다.
-- 사용: python3 tools/submission/fill_official_form.py <official.docx> <out.docx> [--ivi img.png] [--web img.png] [--icon img.png]
+- 사용: python3 tools/submission/fill_official_form.py <official.docx> <out.docx> [--ivi img.png] [--web img.png] [--icon img.png] [--suggestion img.png]
         [--personal 개인정보.json]  ← 01 참가신청서·04 서명표까지 채운 제출용 사본. JSON 은 저장소 밖에 두고 결과물도 저장소에 넣지 않는다.
 """
 import re
@@ -141,14 +141,14 @@ class Images:
 GITHUB = "https://github.com/Evvvaaaaan/majung-pleos-connect"
 TEAM_NAME = "마중"   # 팀명 = 서비스명
 
-def content(images: Images, ivi_png: Path | None, web_png: Path | None, icon_png: Path | None = None):
+def content(images: Images, ivi_png: Path | None, web_png: Path | None, icon_png: Path | None = None, suggestion_png: Path | None = None):
     c = {}
 
     # 1. 앱 한 줄 소개 — 양식이 한 문장을 요구하므로 한 문장으로 끝낸다.
     c['app_summary'] = (
-        body("마중(MAJUNG)은 학원가·역 앞 픽업의 마지막 100m에서 차와 동승자가 **한 지도에서 서로를 보고**, 스마트폰은 모르는 세 가지 "
-             "— **차가 정말 P단에 멈췄는지, 어느 문을 열었는지, 안전벨트를 맸는지** — 를 Pleos Vehicle SDK 신호로 확인해 동승자 웹에 "
-             "\"지금 타도 돼요\"를 알린 뒤, 벨트 체결과 함께 위치 공유를 스스로 끝내는 설치 없는 안심 픽업 앱입니다.")
+        body("마중(MAJUNG)은 픽업의 마지막 100m에서 차와 동승자가 **한 지도에서 서로를 보고**, 스마트폰은 알 수 없는 세 가지"
+             "(**차가 정말 P단에 멈췄는지, 어느 문이 열렸는지, 안전벨트를 맸는지**)를 Pleos Vehicle SDK 신호로 확인해 "
+             "\"지금 타도 돼요\"를 알린 뒤, 벨트를 매는 순간 위치 공유를 스스로 끝내는 설치 없는 안심 픽업 앱입니다.")
     )
 
     # 2. 기획 배경 — 심사 질문 "운전자 및 동승자의 Pain Points & Needs 가 명확히 정의되고 해결 방식이 명확한가" 에 맞춘다.
@@ -175,10 +175,10 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None, icon_png
         + table(["", "마중 (MAJUNG)"],
                 [["문제", "픽업의 마지막 100m. 차와 아이가 서로를 못 찾고, 폰은 '멈췄는지·어느 문인지·벨트를 맸는지'를 모른다."],
                  ["해결", "차량 화면과 동승자 웹이 **같은 지도**에서 서로를 보고, 세 가지는 **차량 신호**로 확인해 \"지금 타도 돼요\"를 알린다. 벨트를 매면 공유가 저절로 끝난다."],
-                 ["차만 아는 3가지", "기어 P + 차속 0 → 멈춤 확정 / 어느 문이 열렸는지 → 차도 쪽이면 즉시 음성 경고 / 벨트 체결 → 링크 파기·실내 원복"],
+                 ["차만 아는 3가지", "기어 P + 차속 0이면 멈춤 확정 / 열린 문이 차도 쪽이면 즉시 음성 경고 / 벨트를 매면 링크 파기·실내 원복"],
                  ["운전자가 하는 일", "버튼 둘: [여기 못 서요](건너편 U턴 · 앞으로 30m · 한 바퀴) 와 [주변 확인 끝, 문 열기]. 나머지는 자동."],
                  ["동승자가 하는 일", "설치 없이 링크를 열고, 필요하면 지도에서 탈 자리를 골라 \"여기서 탈게요\"를 보낸다."],
-                 ["검증", "Pleos Connect Emulator v2.1.0에서 pleos 빌드 실행: Vehicle SDK 등록 16건·콜백 수신·제어 onComplete, NaviHelper 재경로, 동승자 위치·제안 수락. 유닛 테스트 24건, 중계 서버 E2E."],
+                 ["검증", "Pleos Connect Emulator v2.1.0에서 pleos 빌드 실행: Vehicle SDK 등록 16건·콜백 수신·제어 onComplete, NaviHelper 재경로, 동승자 위치·제안 수락. 유닛 테스트 35건, 중계 서버 E2E."],
                  ["산출물", "GitHub(소스·release APK 2종), 시연 영상, 에뮬레이터 검증 로그·스크린샷, 심볼·디자인 시안."]],
                 [1700, 8000])
         + heading("가. 모바일 대비 차량 환경만의 독자적인 가치와 우위 — 차만 아는 3가지 (구현·검증 완료)")
@@ -190,10 +190,10 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None, icon_png
         + heading("나. 주행·정차 맥락 및 차량 기능과의 유기적 결합 — 6단계, 트리거는 모두 차량 신호")
         + table(["단계", "트리거 (차량 신호)", "차량 → 동승자 웹 / 차량 제어", "SDK · API"],
                 [["1 합의", "운전자 \"픽업 시작\" 또는 Gleo 음성 START_SAFE_PICKUP", "기준 간판·차종·번호판 끝 4자리·일회성 웹 링크(최대 20분)", "NaviHelper.requestRoute(WithWaypoints), CarInfo.getVINInfo"],
-                 ["2 접근", "반경 80m + ≤25km/h + 우측 방향지시등 (또는 50m 저속 폴백)", "지도에 내 차·동승자·승차 지점, \"차가 오고 있어요\" + 거리. 운전자 [여기 못 서요] → 건너편(U턴)/앞으로 30m/한 바퀴 → 승차 지점 이동·재경로·동승자 웹 즉시 반영. 동승자 간편 제안(지도에서 탈 자리를 골라 보내는 \"여기서 탈게요\"/건너편으로 갈게요/2분만 기다려 주세요) → 카드로 수락/나중에, 수락 시 그 좌표로 승차 지점 이동·재경로. 도착 전 공조 사전 설정(유아 카시트 좌석 열선 0 고정)", "FusedLocation.registerFusedLocationCallback, TurnSignal.registerTurnSignalState, NaviHelper.requestRoute(재경로), HVAC.setHvacFanSpeed/Temperature, Seat.setHvacSeatTemperature"],
+                 ["2 접근", "반경 80m + ≤25km/h + 우측 방향지시등 (또는 50m 저속 폴백)", "지도에 내 차·동승자·승차 지점, \"차가 오고 있어요\" + 거리. 운전자가 [여기 못 서요]를 누르면 건너편(U턴)·앞으로 30m·한 바퀴 중 하나로 승차 지점이 옮겨지고, 재경로와 동승자 웹 반영이 즉시 따라옵니다. 동승자는 지도에서 탈 자리를 골라 \"여기서 탈게요\"(또는 건너편으로 갈게요 / 2분만 기다려 주세요)를 보내고, 차량 화면에는 카드로 도착해 [수락]/[나중에]로 답합니다. 수락하면 그 좌표로 승차 지점 이동·재경로. 도착 전 공조 사전 설정(유아 카시트 좌석 열선 0 고정)", "FusedLocation.registerFusedLocationCallback, TurnSignal.registerTurnSignalState, NaviHelper.requestRoute(재경로), HVAC.setHvacFanSpeed/Temperature, Seat.setHvacSeatTemperature"],
                  ["3 식별", "—", "차종(VIN) + 번호판 끝 4자리 상시 노출", "CarInfo.getVINInfo (미지원 시 운전자 입력 폴백)"],
                  ["4 정차", "기어 P + 차속 0 + 60m 이내", "\"차가 멈췄어요\" + 지도상 정차 위치 (Gleo 음성 SHARE_PICKUP_OFFSET으로 간판 앞/정면/뒤 지정도 가능)", "Gear.registerGearSelection, FusedLocation confidence"],
-                 ["5 맞이", "운전자 [주변 확인 끝, 문 열기] (유일한 수동, P단 아니면 거부) → 문 열림 → 착좌", "조수석 잠금 해제·창문 25%(와이퍼 작동 시 0%)·하향등 ON일 때 독서등·TTS \"○○님, 반갑습니다\"", "Door.setDoorLock, Window.setWindowPosition, Light.setReadingLightSwitch, Light.registerLowBeamLightState, Seat.registerSeatOccupancy, TextToSpeech(ON_DEVICE)"],
+                 ["5 맞이", "운전자 [주변 확인 끝, 문 열기](유일한 수동 입력, P단이 아니면 거부), 이어서 문 열림·착좌", "조수석 잠금 해제·창문 25%(와이퍼 작동 시 0%)·하향등 ON일 때 독서등·TTS \"○○님, 반갑습니다\"", "Door.setDoorLock, Window.setWindowPosition, Light.setReadingLightSwitch, Light.registerLowBeamLightState, Seat.registerSeatOccupancy, TextToSpeech(ON_DEVICE)"],
                  ["6 종료", "승차 좌석 문 닫힘 + 벨트 체결 (센서 없는 트림은 수동 버튼)", "링크 즉시 파기, 20분 TTL 백업, 창문·조명·공조 원복", "Seat.registerSeatBeltBuckledState, Door.registerDoorPosition"]],
                 [900, 2600, 3400, 2800])
         + heading("다. 차량에서 새로 생기는 경험")
@@ -203,18 +203,19 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None, icon_png
         + bullet("**공유는 스스로 사라집니다.** 벨트를 매는 순간 링크가 서버에서 삭제되고 창문·조명·공조가 세션 전 상태로 돌아갑니다. 운전자도 동승자도 끌 필요가 없습니다.")
         + heading("라. 주행 안전·개인정보 설계")
         + bullet("운전 부하 지수(DLI): 조향 각속도·브레이크·와이퍼·차속·다음 회전(NaviHelper TBT)까지 거리로 계산. 0.45 이상이면 일반 안내를 보류했다가 1.5초 안정 후 재생. 차도 쪽 문 경고와 출발 위험 경고만 즉시 발화.")
-        + bullet("출발 인터락: 5단계 중 기어 D/R 전환 시 문 열림·벨트 미체결이면 즉시 경고.")
+        + bullet("출발 인터락: 맞이 단계(5단계)에서 기어를 D/R로 바꿀 때 문이 열려 있거나 벨트가 풀려 있으면 즉시 경고.")
         + bullet("원격 도어 **개방**은 하지 않음. 잠금 해제만, P단 정차 + 운전자 주변 확인 후에만 호출.")
         + bullet("위치는 서로 보기 위해서만 씁니다. 동승자 위치는 동승자 웹에서 브라우저 위치 권한을 허용한 경우에만(opt-in) 세션 동안 중계 서버 메모리에 머물고, 차량 위치·승차 지점과 함께 탑승 확인 즉시 삭제(DELETE), 미종료 시 20분 자동 만료. 디스크·로그에 남기지 않음(개인정보 보호법 제22조의2 아동 보호 고려).")
         + bullet("주행 제한(CarUxRestrictions) 시 입력란 숨김, 터치 타깃 ≥56dp, 버튼은 화면 아래 한 줄에 고정되어 주행 중 위치가 움직이지 않음. 차량 신호·로그는 메인 화면에서 빼고 진단 창으로 이동.")
         + bullet("중계 서버 접근 제어: 세션 id만으로는 읽기·쓰기 불가. 차량은 세션 생성 시 등록한 키(헤더)로만 상태 갱신·제안 응답·파기를 할 수 있고, 동승자는 공유 링크의 일회성 토큰 없이는 상태 조회·스트림·위치 전송·제안을 할 수 없음. 키·토큰은 스트림에 실리지 않으며 불일치는 403 (E2E 검증 포함).")
         + heading("마. 기존 대안과의 차이 — 기존에 없던 것")
-        + table(["", "전화·메신저", "폰 위치 공유(지도 앱)·택시 앱", "키즈폰·가족 위치 앱", "마중 (Pleos Connect)"],
+        + body("픽업 장소와 위치·도착 예정 시간을 공유하고 그 변경을 내비에 반영하는 일은 폰과 내비 연동만으로도 됩니다. 마중은 그 위에, 차량 신호가 없으면 만들 수 없는 세 가지를 더했습니다. 첫째, 기어 P와 차속 0이 확인된 뒤에만 \"지금 타도 돼요\"를 알립니다. 둘째, 차도 쪽 문이 열리면 그 순간 차가 경고합니다. 셋째, 벨트를 매면 공유가 저절로 지워집니다. 동승자는 계정도 설치도 없이 링크 하나로 참여합니다.")
+        + table(["", "전화·메신저", "위치·도착 시간 공유형 (지도 앱·택시 앱·픽업 공유 앱)", "키즈폰·가족 위치 앱", "마중 (Pleos Connect)"],
                 [["\"지금 타도 돼요\" 판단", "말로 확인", "GPS 속도 추정, 정차 여부 불명", "불명", "**기어 P + 차속 0** (차량 신호)"],
                  ["잘못된 문 방지", "불가", "불가", "불가", "차도 쪽 문 열림 **즉시 음성 경고**"],
                  ["공유 종료", "—", "사용자가 직접 꺼야 함", "상시 공유", "**벨트 체결 시 자동 파기**, 20분 만료"],
                  ["운전자 입력", "통화", "앱 조작", "앱 조작", "버튼 둘, 나머지 자동. 주행 중 입력 숨김"],
-                 ["동승자 준비물", "전화", "앱 설치·로그인", "전용 기기", "**링크 하나, 설치 없음**"],
+                 ["동승자 준비물", "전화", "앱 설치 또는 계정 로그인", "전용 기기", "**링크 하나, 설치 없음**"],
                  ["맞이", "없음", "없음", "없음", "잠금 해제·창문·독서등·공조·환대 음성"],
                  ["서로의 위치", "말로 설명", "폰끼리 공유", "폰끼리 공유", "차량 화면과 동승자 웹이 **같은 지도**, 자리 변경이 내비 재경로로 이어짐"]],
                 [1700, 1500, 2100, 1700, 2700])
@@ -236,9 +237,9 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None, icon_png
 
     c['pleos_plan'] = (
         heading("가. 현재 구현 상태 (1차 접수 시점)")
-        + bullet("Android Kotlin(Compose) 차량 앱 — pleos(실 SDK) / sim(시뮬레이션) 두 플레이버, 동일한 앱 로직. Node.js SSE 중계 서버 + 동승자 무설치 웹. 유닛 테스트 24건, 중계 서버 E2E 통과. sim·pleos 릴리스 APK 빌드 완료. 지도: 차량은 osmdroid(OSM 타일, 밤에는 색 행렬 필터), 동승자 웹은 Leaflet.")
-        + bullet("**Pleos Connect Emulator v2.1.0(API 34, 2560×1440)에서 pleos 빌드를 실행·검증했습니다.** Vehicle SDK `register*` 16건 등록, Virtual Console로 주입한 기어·차속·브레이크·조향·방향지시등·하향등·와이퍼·도어·착좌 콜백 수신, 제어 호출 `onComplete`(도어 잠금 해제·조수석 창문·독서등), NaviHelper 경로 요청·재경로·TBT 수신, 능력 조회(`checkXXXCapabilities`), OSM 지도 타일 로드, 동승자 위치·제안 SSE 수신, [여기 못 서요] 3안, 하향등 연동 낮/밤 전환까지 확인했습니다. 로그·화면은 저장소 docs/verification, docs/screenshots에 있습니다.")
-        + bullet("에뮬레이터에서 드러난 차종 차이는 코드로 흡수했습니다: DOOR_LOCK이 좌석별 영역을 거부 → 능력 조회의 지원 영역(4도어 묶음)을 선택, WINDOW_POS 범위 0~10 → AreaBounds로 % 환산, Pleos TTS ON_DEVICE 엔진 오류 → EventListener.onError 수신 후 Android TTS 폴백.")
+        + bullet("Android Kotlin(Compose) 차량 앱 — pleos(실 SDK) / sim(시뮬레이션) 두 플레이버, 동일한 앱 로직. Node.js SSE 중계 서버 + 동승자 무설치 웹. 유닛 테스트 35건, 중계 서버 E2E 통과. sim·pleos 릴리스 APK 빌드 완료. 지도: 차량은 osmdroid(OSM 타일, 밤에는 색 행렬 필터), 동승자 웹은 Leaflet.")
+        + bullet("**Pleos Connect Emulator v2.1.0(API 34, 2560×1440)에서 pleos 빌드를 실행·검증했습니다.** Vehicle SDK 신호 등록(register) 16건, Virtual Console로 주입한 기어·차속·브레이크·조향·방향지시등·하향등·와이퍼·도어·착좌 콜백 수신, 제어 호출 완료(onComplete, 도어 잠금 해제·조수석 창문·독서등), NaviHelper 경로 요청·재경로·TBT 수신, 능력 조회(checkXXXCapabilities), OSM 지도 타일 로드, 동승자 위치·제안 SSE 수신, 동승자가 지도에서 고른 자리의 차량 지도 표시(마중 심볼)와 수락 시 승차 지점 이동·재경로, [여기 못 서요] 3안, 하향등 연동 낮/밤 전환, 진단 창의 동승자 링크 QR까지 확인했습니다. 로그·화면은 저장소 docs/verification, docs/screenshots에 있습니다.")
+        + bullet("에뮬레이터에서 드러난 차종 차이는 코드로 흡수했습니다: DOOR_LOCK이 좌석별 영역을 거부해 능력 조회가 알려 준 지원 영역(4도어 묶음)을 쓰고, WINDOW_POS 범위가 0~10이라 AreaBounds로 %를 환산하며, Pleos TTS ON_DEVICE 엔진 오류는 EventListener.onError로 받아 Android TTS로 폴백합니다.")
         + bullet("차량 위치만은 Pleos 에뮬레이터에 주입 수단이 없어 디버그 빌드의 adb 훅(io.majung.pleos.DEBUG_LOCATION)으로 넣어 접근·정차 판정과 지도를 검증·녹화했습니다(release APK에는 없음, 실차 위치가 들어오면 그대로 우선). AAOS CarPropertyManager 차속 구독은 Pleos·AAOS 에뮬레이터 모두에서 동작했습니다.")
         + bullet("SDK 버전은 nexus-playground.pleos.ai에 실제 배포된 것만 사용: Vehicle 2.3.2 · NaviHelper 3.0.5 · FusedLocation 1.1.3 · TextToSpeech 3.3.1.")
         + heading("나. SDK / API 사용 계획 (설계 기준 → 구현 파일)")
@@ -246,19 +247,19 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None, icon_png
                 [["Vehicle · Gear, Brake, SteeringWheel, Wiper, TurnSignal, Light", "register/unregister GearSelection, BrakePedalStatus, SteeringWheelAngle, WiperState(FRONT_WINDSHIELD), TurnSignalState, LowBeamLightState + getCurrent*", "P단 정차 판정, 운전 부하 지수, 접근 복합 조건, 우천 인터락, 야간 독서등 조건. 콜백 실패는 UI 로그로 투명 표시", "CAR_DRIVE, CAR_LIGHTS, READ_CAR_STEERING, READ_WINDSHIELD_WIPERS"],
                  ["Vehicle · Door, Window", "registerDoorPosition×4, setDoorLock(ROW_1_RIGHT), setWindowPosition(ROW_1_RIGHT), checkDoorPosition/DoorLock/WindowPositionCapabilities", "차도 쪽 문 경고, 승차 좌석 문 열림/닫힘, 잠금 해제·창문 25%/0%", "CAR_DOORS, CONTROL_CAR_DOORS, CAR_WINDOWS, CONTROL_CAR_WINDOWS"],
                  ["Vehicle · Seat", "registerSeatOccupancy×3, registerSeatBeltBuckledState×3, get/setHvacSeatTemperature, checkSeatOccupancy/SeatBeltBuckled/SeatTemperatureCapabilities", "착좌 환대, 벨트 체결 자동 종료, 카시트 좌석 열선 0 고정. 미지원 트림은 시퀀스 추론/수동 모드", "CAR_SEATS, CONTROL_CAR_SEATS"],
-                 ["Vehicle · HVAC", "get/setHvacFanSpeed, get/setHvacTemperature(CELSIUS), get/setHvacRecirculation, checkHvacFanSpeed/Temperature/RecirculationCapabilities", "도착 전 사전 공조 → 세션 종료 시 스냅샷 원복. AccessType이 WRITE가 아니면 건너뜀", "CAR_CLIMATE, CONTROL_CAR_CLIMATE"],
+                 ["Vehicle · HVAC", "get/setHvacFanSpeed, get/setHvacTemperature(CELSIUS), get/setHvacRecirculation, checkHvacFanSpeed/Temperature/RecirculationCapabilities", "도착 전 사전 공조, 세션 종료 시 스냅샷으로 원복. AccessType이 WRITE가 아니면 건너뜀", "CAR_CLIMATE, CONTROL_CAR_CLIMATE"],
                  ["Vehicle · CarInfo", "getVINInfo", "차종 표기 (실패 시 운전자 입력 차종)", "CAR_INFO"],
-                 ["FusedLocation 1.1.3", "isSupported, initialize, registerFusedLocationCallback, getLastKnownLocation (confidence)", "지도의 내 차 위치, 접근 거리·정차 판정. 미지원/저신뢰 → 거리 숫자 숨김", "FUSED_LOCATION"],
-                 ["NaviHelper 3.0.5", "requestRoute / requestRouteWithWaypoints / cancelRoute, addListener(onTBTInfo)", "후보 포켓 경로, [여기 못 서요]·제안 수락 시 승차 지점 재경로, 다음 회전 거리 → 운전 부하", "NAVI_ROUTE, NAVI_ROUTE_SEARCH"],
+                 ["FusedLocation 1.1.3", "isSupported, initialize, registerFusedLocationCallback, getLastKnownLocation (confidence)", "지도의 내 차 위치, 접근 거리·정차 판정. 미지원·저신뢰 시 거리 숫자 숨김", "FUSED_LOCATION"],
+                 ["NaviHelper 3.0.5", "requestRoute / requestRouteWithWaypoints / cancelRoute, addListener(onTBTInfo)", "후보 포켓 경로, [여기 못 서요]·제안 수락 시 승차 지점 재경로, 다음 회전까지의 거리로 운전 부하 계산", "NAVI_ROUTE, NAVI_ROUTE_SEARCH"],
                  ["TextToSpeech 3.3.1", "TextToSpeech(ON_DEVICE).speak(text, true)", "환대 인사·안전 경고. 실패 시 Android TTS 폴백", "TTS_SERVICE"],
                  ["AAOS 표준", "CarPropertyManager PERF_VEHICLE_SPEED, CarUxRestrictionsManager", "차속(Pleos SDK 미제공), 주행 중 입력 제한. 권한 미승인 시 FusedLocation 좌표로 차속 추정", "android.car.permission.CAR_SPEED"],
                  ["Gleo", "schema.json: START_SAFE_PICKUP / SHARE_PICKUP_OFFSET / COMPLETE_OR_CANCEL_PICKUP", "음성 호출로 픽업 시작·정차 위치 지정·종료", "—"]],
                 [2100, 2900, 3100, 1600])
         + heading("다. 구조")
-        + body("Vehicle SDK·AAOS·FusedLocation 콜백 → VehicleSignalHub(단일 StateFlow, 조향 각속도·추정 차속 계산) → SignalDrivenPickupCoordinator(신호 변화로 6단계 자동 전진) → PickupEtaOrchestrator(세션·티켓·VehicleFacts·지도용 LiveMapState 발행, 여기 못 서요 3안·제안 수락, 즉시 파기) → 중계 서버(세션 메모리, SSE) → 동승자 웹(Leaflet 지도). 차량 제어는 BoardingActuator(Door/Window/Light) + PleosCapabilityGateway(공조 스냅샷·원복, 탑승 판정 모드).")
+        + body("차량 신호는 한 방향으로만 흐릅니다. ① Vehicle SDK·AAOS·FusedLocation 콜백을 VehicleSignalHub가 하나의 StateFlow로 모읍니다(조향 각속도·추정 차속 계산). ② SignalDrivenPickupCoordinator가 신호 변화만으로 6단계를 자동 전진시킵니다. ③ PickupEtaOrchestrator가 세션·티켓·VehicleFacts·지도용 LiveMapState를 발행하고, [여기 못 서요] 3안·제안 수락·즉시 파기를 처리합니다. ④ 중계 서버(세션 메모리, SSE)를 거쳐 동승자 웹(Leaflet 지도)에 같은 상태가 도착합니다. 차량 제어는 BoardingActuator(Door/Window/Light)와 PleosCapabilityGateway(공조 스냅샷·원복, 탑승 판정 모드)가 맡습니다.")
         + heading("라. 2차 PT 심사 전 계획")
-        + bullet("**심사위원이 자기 폰으로 타 보는 시연:** 차량 화면에 동승자 링크 QR을 띄우고 HTTPS 공개 중계 서버로 연결해, 심사위원 폰의 브라우저 위치 공유와 \"여기서 탈게요\"까지 실제로 동작하게 합니다(폰 브라우저의 위치 공유는 HTTPS에서만 허용).")
-        + bullet("**운전 중 손대지 않는 수락:** 동승자 제안을 SpeechToText SDK로 \"수락\"/\"나중에\" 음성 응답. 차량 지도에 동승자가 고른 자리를 마중 심볼로 미리 표시.")
+        + bullet("**심사위원이 자기 폰으로 타 보는 시연:** 중계 서버를 공개 HTTPS 주소로 상시 운영하고 APK 기본 주소를 그쪽으로 바꿔, 심사위원이 서버 준비 없이 APK만 설치하면 되게 합니다(지금은 저장소의 서버를 로컬에서 실행). 차량 화면(진단 창)에 이미 띄우는 동승자 링크 QR을 이 서버로 연결해, 심사위원 폰의 브라우저 위치 공유와 \"여기서 탈게요\"까지 실제로 동작하게 합니다(폰 브라우저의 위치 공유는 HTTPS에서만 허용).")
+        + bullet("**운전 중 손대지 않는 수락:** 지금은 카드의 [수락]/[나중에]를 터치로 답합니다. 이를 SpeechToText SDK로 \"수락\"/\"나중에\" 음성 응답까지 받도록 넓힙니다.")
         + bullet("**안정성:** 중계 끊김·앱 재시작 시 세션 복구, 20분 만료 처리, 장시간 구동 테스트(전시용 APK 기준). 정차 후 승차 소요 시간 비교 실험(통화 대 마중).")
         + bullet("실차 또는 TTS 엔진·위치가 살아 있는 환경에서 Pleos TTS 환대 음성, FusedLocation 기반 자동 접근·정차, 벨트 체결 자동 종료를 실증하고 시연 영상 교체. 키즈폰 SMS 폴백 발송 채널 연결(현재 서버 스텁), 다자녀 연속 픽업 큐(경유지 2개 슬라이딩은 구현됨).")
     )
@@ -282,7 +283,7 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None, icon_png
                  ["2028", "약 5.9만 대", "50%", "약 1.8만", "약 3.0만"],
                  ["2030", "약 19.5만 대", "55%", "약 6.4만", "약 11만"]],
                 [1200, 2500, 1600, 2200, 2200])
-        + bullet("**Retention Rate 목표:** 픽업은 주 3~5회 반복되는 루틴이라 학기 중 4주 리텐션 55%, 12주 45%를 목표로 합니다[가정]. 지표: 세션 완료율(벨트 체결로 자동 종료된 비율), 운전자 수동 지정 비율, 접근 알림 → 승차까지 소요 시간. 방학에는 역·학원 외 '퇴근 마중' 시나리오로 이탈을 줄입니다.")
+        + bullet("**Retention Rate 목표:** 픽업은 주 3~5회 반복되는 루틴이라 학기 중 4주 리텐션 55%, 12주 45%를 목표로 합니다[가정]. 지표: 세션 완료율(벨트 체결로 자동 종료된 비율), 운전자 수동 지정 비율, 접근 알림부터 승차까지 걸린 시간. 방학에는 역·학원 외 '퇴근 마중' 시나리오로 이탈을 줄입니다.")
         + heading("다. 수익 모델과 확장 로드맵")
         + bullet("1단계(출시): 기본 픽업·안심 확인 무상 — 재사용 습관 검증.")
         + bullet("2단계: 다자녀 학원 일정 연동, 키즈폰 SMS 알림 등 통신 비용 발생 기능을 선택형 구독(월 2,900원 [가정])으로.")
@@ -296,15 +297,17 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None, icon_png
         + bullet("**릴리스 APK:** apk/ 폴더 — 마중_마중_release.apk (공식 규칙 팀명_앱이름; Pleos Connect 에뮬레이터 v2.1.0 / API 34 대상, Vehicle 2.3.2 실연동 빌드, majung-v2-pleos-release.apk 와 동일), majung-v2-sim-release.apk (일반 AVD·AAOS 에뮬레이터 시연용). 두 APK 모두 debug 키 서명으로 바로 설치됩니다.")
         + bullet("**시연 영상:** docs/demo/majung_demo.mp4 (이메일 첨부 동일 파일, 약 2분 40초) — Pleos Connect v2.1.0 전용 에뮬레이터에서 pleos 빌드 실녹화(실제 Vehicle SDK 콜백·제어, 동승자 위치, 동승자가 지도에서 자리를 골라 보낸 '여기서 탈게요'와 수락 후 승차 지점 이동, 여기 못 서요 재경로, 낮/밤 전환) + 동승자 웹 실시간 중계 상태 동기 재생 + 모션 그래픽 해설·내레이션. 차량 위치만 adb 훅으로 주입(디버그 빌드).")
         + bullet("**Pleos 에뮬레이터 검증 기록:** docs/verification/pleos_emulator_evidence.md (SDK 등록·콜백·제어 onComplete·능력 조회 로그, 에뮬레이터 제약과 대응), 화면 docs/screenshots/pleos_emulator_*.png")
-        + bullet("**검증 방법(저장소에서 재현):** node relay-server/verify_e2e_sse.mjs · ./gradlew :app:testSimDebugUnitTest (24건) · ./scripts/verify_and_build_apk.sh")
+        + bullet("**검증 방법(저장소에서 재현):** node relay-server/verify_e2e_sse.mjs · ./gradlew :app:testSimDebugUnitTest (35건) · ./scripts/verify_and_build_apk.sh")
         + bullet("**디자인·심볼:** docs/design/ (화면 시안 3종 비교와 채택안), docs/brand/majung-symbol.svg (심볼 '파란 판에 새긴 ㅈ' — 런처 아이콘·동승자 웹 헤더에 동일 벡터). 화면은 Pleos Connect 런처의 결(밝은 바탕·검은 판·라운드 12·얇은 선·시스템 서체)을 따르고 하향등 ON 시 밤 토큰으로 바뀝니다.")
     )
     if ivi_png and ivi_png.exists():
-        ref += images.add(ivi_png, 16.0, "그림 1. Pleos Connect v2.1.0 에뮬레이터(런처 오른쪽 앱 영역)에서 실행 중인 pleos 빌드 — 지도 위 동승자(먹색 점)·내 차(파란 원)·승차 지점(현대 엠블럼), 상태 판, [여기 못 서요] 버튼.")
+        ref += images.add(ivi_png, 16.0, "그림 1. Pleos Connect v2.1.0 에뮬레이터(런처 오른쪽 앱 영역)에서 실행 중인 pleos 빌드 — 지도 위 동승자(먹색 점)·내 차(파란 화살표)·승차 지점(현대 엠블럼), 상태 판, [여기 못 서요] 버튼.")
+    if suggestion_png and suggestion_png.exists():
+        ref += images.add(suggestion_png, 16.0, "그림 2. 동승자가 지도에서 고른 자리가 차량 지도에 마중 심볼로 표시되고, \"여기서 탈게요\" 제안이 카드로 도착한 화면(승차 지점에서 57 m). [수락]하면 승차 지점이 그 자리로 옮겨지고 내비가 재경로한다.")
     if web_png and web_png.exists():
-        ref += images.add(web_png, 7.0, "그림 2. 동승자 무설치 웹 — 지도(차·나·승차 지점), 번호판 끝 4자리, 간편 제안 세 개(여기서 탈게요는 지도에서 자리를 골라 보냄). 상태 블록은 차량 신호(P단 정차·문·벨트)로만 바뀐다.")
+        ref += images.add(web_png, 7.0, "그림 3. 동승자 무설치 웹 — 지도(차·나·승차 지점), 번호판 끝 4자리, 간편 제안 세 개(여기서 탈게요는 지도에서 자리를 골라 보냄). 상태 블록은 차량 신호(P단 정차·문·벨트)로만 바뀐다.")
     if icon_png and icon_png.exists():
-        ref += images.add(icon_png, 11.0, "그림 3. Pleos 런처 앱 목록의 마중 아이콘 — 심볼 '파란 판에 새긴 ㅈ'(ㅁㅈ 모노그램, 현대 블루 판 위 흰 ㅈ).")
+        ref += images.add(icon_png, 11.0, "그림 4. Pleos 런처 앱 목록의 마중 아이콘 — 심볼 '파란 판에 새긴 ㅈ'(ㅁㅈ 모노그램, 현대 블루 판 위 흰 ㅈ).")
     c['reference_link'] = ref
 
     c['shortform_link'] = body("미참여 (공란 제출)")
@@ -381,14 +384,14 @@ def fill_personal(xml: str, info: dict) -> str:
 
 
 # ------------------------------------------------------------------ 적용
-def fill(official: Path, out: Path, ivi_png: Path | None, web_png: Path | None, icon_png: Path | None = None, personal: dict | None = None):
+def fill(official: Path, out: Path, ivi_png: Path | None, web_png: Path | None, icon_png: Path | None = None, personal: dict | None = None, suggestion_png: Path | None = None):
     tmp = Path(tempfile.mkdtemp(prefix='majung-form-'))
     with zipfile.ZipFile(official) as z:
         z.extractall(tmp)
     doc_path = tmp / 'word' / 'document.xml'
     xml = doc_path.read_text(encoding='utf-8')
     images = Images(tmp)
-    blocks = content(images, ivi_png, web_png, icon_png)
+    blocks = content(images, ivi_png, web_png, icon_png, suggestion_png)
 
     # 1) 각 입력란(sdt)이 들어 있는 문단 전체를 생성 블록으로 교체
     for tag, block in blocks.items():
@@ -406,7 +409,7 @@ def fill(official: Path, out: Path, ivi_png: Path | None, web_png: Path | None, 
         if '앱명 / 프로젝트명' not in text or '_____' not in text:
             return p
         filled += 1
-        p = re.sub(r'_{5,}', '마중 (MAJUNG)', p, count=1)
+        p = re.sub(r'_{5,}', '마중 (MAJUNG) · 차량 신호로 확인하는 안심 픽업', p, count=1)
         return re.sub(r'_{2,}', '', p)  # run이 쪼개져 남은 밑줄 제거
     xml = re.sub(r'<w:p\b(?:(?!<w:p\b).)*?</w:p>', fill_app_name, xml, flags=re.S)
     print(f'app-name fields filled={filled}')
@@ -449,9 +452,10 @@ if __name__ == '__main__':
     ivi = Path(a[a.index('--ivi') + 1]) if '--ivi' in a else None
     web = Path(a[a.index('--web') + 1]) if '--web' in a else None
     icon = Path(a[a.index('--icon') + 1]) if '--icon' in a else None
+    sugg = Path(a[a.index('--suggestion') + 1]) if '--suggestion' in a else None
     personal = None
     if '--personal' in a:
         import json
         pj = Path(a[a.index('--personal') + 1])
         personal = json.loads(pj.read_text(encoding='utf-8')); personal['_source'] = pj.name
-    fill(Path(a[0]), Path(a[1]), ivi, web, icon, personal)
+    fill(Path(a[0]), Path(a[1]), ivi, web, icon, personal, sugg)

@@ -36,7 +36,7 @@
 1. **영상으로 먼저**: [`docs/demo/majung_demo.mp4`](docs/demo/majung_demo.mp4) — Pleos Connect v2.1.0 에뮬레이터 실녹화와 동승자 웹을 나란히, 단계별 SDK 호출 자막.
 2. **가장 빠른 실행 (일반 Android 에뮬레이터, 2분)**: `PORT=8080 node relay-server/server.mjs` → `apk/majung-v2-sim-release.apk` 설치 → [픽업 시작, 링크 보내기] → 화면 아래 **[시뮬레이션]**에서 "주행 후 간판 앞 P단 정차" → [주변 확인 끝, 문 열기] → "동승자 탑승". 동승자 웹은 `curl http://127.0.0.1:8080/api/v1/sessions/_latest` 가 주는 `sessionId`·`passengerToken`으로 `http://localhost:8080/m/<sessionId>?t=<passengerToken>&demoLat=37.49893&demoLng=127.06164` 를 브라우저에서 엽니다.
 3. **Pleos Connect 에뮬레이터 (실 SDK)**: 위 중계 서버 + `apk/majung-v2-pleos-release.apk` → Virtual Console(127.0.0.1:8088)로 기어 P·차속 0·문·착좌·하향등을 주입하면 차량 화면과 동승자 웹이 즉시 반응합니다. 세부는 4-2절.
-4. **코드에서 확인**: 2절의 표(README 주장 ↔ 소스), `node relay-server/verify_e2e_sse.mjs`, `./gradlew :app:testSimDebugUnitTest`(24건), `docs/verification/pleos_emulator_evidence.md`(실제 SDK 로그).
+4. **코드에서 확인**: 2절의 표(README 주장 ↔ 소스), `node relay-server/verify_e2e_sse.mjs`, `./gradlew :app:testSimDebugUnitTest`(35건), `docs/verification/pleos_emulator_evidence.md`(실제 SDK 로그).
 
 ## 1. 6단계 흐름과 트리거 신호
 
@@ -83,7 +83,7 @@
 
 ```bash
 node relay-server/verify_e2e_sse.mjs          # 중계 서버 E2E: 좌표 필드 sanitize · VehicleFacts 통과 · PASSENGER_LOCATION/SUGGESTION · suggestion-reply · SSE · DELETE 파기
-./gradlew :app:testSimDebugUnitTest           # 유닛 테스트 24건 (좌표 오프셋, 여기 못 서요 3안, 제안 수락/거절 포함)
+./gradlew :app:testSimDebugUnitTest           # 유닛 테스트 35건 (운전 부하 게이트, 좌표 오프셋, 여기 못 서요 3안, 제안 수락/거절, 세션 종료 정리 포함)
 ./scripts/verify_and_build_apk.sh             # 위 두 가지 + sim/pleos release APK 생성
 ```
 

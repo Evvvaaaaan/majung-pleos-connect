@@ -221,4 +221,47 @@ class LiveMapAndSuggestionTest {
         assertEquals(1, h.routes.size)
         assertEquals(false, h.replies.single().third)
     }
+
+    @Test
+    fun pickupHereShowsProposedSpotOnCarMapUntilTheDriverAnswers() = runTest {
+        val h = Harness()
+        h.start()
+        val here = GeoPoint(37.49893, 127.06205)
+        h.orchestrator.onPassengerSuggestion(suggestion(SuggestionKind.PICKUP_HERE, here))
+        // 수락 전: 승차 지점은 그대로, 고른 자리만 따로 표시된다
+        assertEquals(here, h.orchestrator.uiState.value.liveMap.proposed)
+        assertEquals(h.pickup, h.orchestrator.uiState.value.liveMap.pickup)
+
+        h.orchestrator.resolvePendingSuggestion(accept = false)
+        assertNull(h.orchestrator.uiState.value.liveMap.proposed)
+    }
+
+    @Test
+    fun suggestionsWithoutASpotNeverPlaceAProposedMarker() = runTest {
+        val h = Harness()
+        h.start()
+        h.orchestrator.onPassengerSuggestion(PassengerSuggestion("w1", SuggestionKind.WAIT_MINUTES, "2분만 기다려 주세요", null, null, 7_000L))
+        assertNull(h.orchestrator.uiState.value.liveMap.proposed)
+        h.orchestrator.resolvePendingSuggestion(accept = true)
+        val s = h.orchestrator.uiState.value
+        assertEquals(h.pickup, s.liveMap.pickup)
+        assertEquals("동승자: 2분만 기다려 주세요", s.liveMap.pickupNote)
+        assertEquals(true, h.replies.single().third)
+    }
+
+    @Test
+    fun sessionEndClearsPendingCardPassengerPositionPickupAndProposedSpot() = runTest {
+        val h = Harness()
+        h.start()
+        h.orchestrator.onPassengerLocation(GeoPoint(37.4989, 127.0617), 12.0, 5_000L)
+        h.orchestrator.onPassengerSuggestion(suggestion(SuggestionKind.PICKUP_HERE, GeoPoint(37.49893, 127.06205)))
+
+        assertTrue(h.orchestrator.completeAndShredSessionImmediately(manualConfirmed = true, nowMs = 9_000L))
+        val s = h.orchestrator.uiState.value
+        assertEquals(PickupPhase.STEP6_COMPLETED_SHREDDED, s.phase)
+        assertNull(s.pendingSuggestion)
+        assertNull(s.liveMap.passenger)
+        assertNull(s.liveMap.pickup)
+        assertNull(s.liveMap.proposed)
+    }
 }
