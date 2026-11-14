@@ -81,6 +81,8 @@ MajungFlow: 착좌 감지 → 환대 인사: 지수님, 반갑습니다.
 MajungFlow: 수동 탑승 확인 → 창문·조명·공조 원복 · 세션 즉시 파기          → 중계 SESSION_SHREDDED
 ```
 
+시연 영상 재녹화(v3.2, 2026-11-14 18:06): 최종 UI(심볼 아이콘·현대 엠블럼 승차 지점·지도에서 자리 고르기)로 같은 절차를 다시 녹화했다. 중계 타임라인 `pleos_emulator_relay_timeline_v3_2.jsonl`, 단계 시각 `pleos_flow_taps_v3_2.json` — 자리 고르기 제안 45.3초 → 수락 49.4초 → 승차 지점 이동(`pickupVersion` 3, "동승자 위치") 50.8초 → 접근 60.5초 → P단 정차 77.1초 → 환대 86.3초 → 파기 104.6초.
+
 제안 자리 표시·QR(v3.3): 동승자가 지도에서 골라 보낸 자리는 수락 전까지 차량 지도에 마중 심볼로 그려지고(`LiveMapState.proposed`, `drawProposed`), 수락·거절·세션 종료 때 지워진다. 진단 창에는 공유 링크의 QR(zxing-core 3.5.3)이 떠서 폰으로 바로 열 수 있다(`docs/screenshots/pleos_emulator_v3_diag_qr.png`). 세션 `mj-eca19f46`에서 확인: 제안 좌표(37.49893, 127.06205)에 심볼, 카드 "승차 지점에서 57 m", [수락] 후 `pickupVersion` 2·라벨 "동승자 위치"·심볼 제거.
 
 세션 종료 정리(v3.2): 탑승 확인으로 세션을 파기하면 차량 화면에서도 대기 중 제안 카드·동승자 위치·승차 지점을 함께 지운다(내 차 위치만 남김). 종료 판 위에 이전 제안 카드가 남아 있던 것을 에뮬레이터에서 발견해 고쳤다(`completeAndShredSessionImmediately`).
