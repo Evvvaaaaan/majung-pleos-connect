@@ -82,7 +82,7 @@ class EphemeralRelayClient(
                 put("phase", phase.name)
                 put("boardingDoorUnlocked", boardingDoorUnlocked)
                 put("welcomeGreetingActive", welcomeGreetingActive)
-                // 차만 아는 사실 — 동승자 웹의 큰 상태 카드가 이 값으로만 바뀐다
+                // 차량 신호로만 확인되는 사실 — 동승자 웹의 큰 상태 카드가 이 값으로만 바뀐다
                 put("stoppedInPark", facts.stoppedInPark)
                 put("trafficSideDoorOpen", facts.trafficSideDoorOpen)
                 put("passengerDoorOpen", facts.passengerDoorOpen)

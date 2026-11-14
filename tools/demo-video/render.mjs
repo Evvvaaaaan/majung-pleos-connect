@@ -49,7 +49,7 @@ if (args.pleos) {
     pick: { t0: at("pick", at("suggest") - 4000), t1: at("suggest"), tEnd: at("accept"), lat: Number(args.pickLat || 37.498930), lng: Number(args.pickLng || 127.062050) },
     captions: [
       { t: at("start"), n: 1, title: "픽업 시작, 링크 보내기", sub: "NaviHelper.requestRoute로 내비 경로 설정, 동승자에게 일회성 지도 링크" },
-      { t: at("car320"), n: 2, title: "지도 하나, 할 일 하나", sub: "동승자 위치와 승차 지점, 내 차. 가는 동안 누를 버튼은 '여기 못 서요'뿐" },
+      { t: at("car320"), n: 2, title: "지도와 지금 누를 버튼만", sub: "동승자 위치와 승차 지점, 내 차. 가는 동안 누를 버튼은 '여기 못 서요'뿐" },
       { t: at("pax"), n: 2, title: "동승자 위치가 차에 보입니다", sub: "동승자 웹이 허용한 동안만 세션 메모리에, 탑승 확인 즉시 삭제" },
       { t: at("cantstop"), n: 3, title: "여기 못 서요", sub: "건너편 (U턴), 앞으로 30 m, 한 바퀴 중 하나" },
       { t: at("option"), n: 3, title: "앞으로 30 m: 승차 지점 이동, 내비 재경로", sub: "동승자 웹에 '운전자: 앞으로 30 m'와 새 승차 지점" },

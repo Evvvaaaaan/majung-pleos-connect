@@ -17,6 +17,5 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
       - name: Unit tests (sim flavor, no Pleos repository access needed)
         run: ./gradlew --no-daemon :app:testSimDebugUnitTest

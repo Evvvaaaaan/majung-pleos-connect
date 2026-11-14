@@ -35,7 +35,7 @@ data class VehicleSignalState(
     val eventCount: Int = 0,
     val updatedAtMs: Long = 0L
 ) {
-    /** 폰은 모르는 사실 #1: 차가 실제로 P단에 멈춰 있는가 */
+    /** 스마트폰만으로는 알 수 없는 사실 #1: 차가 실제로 P단에 멈춰 있는가 */
     val stoppedInPark: Boolean get() = gear == GearPosition.P && speedKmh <= 1.0f
     fun isDoorOpen(zone: SeatZone): Boolean = doorOpen[zone] == true
     fun isSeated(zone: SeatZone): Boolean = seatOccupied[zone] == true
