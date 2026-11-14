@@ -12,6 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
@@ -33,7 +35,7 @@ import org.osmdroid.views.overlay.Overlay
 import java.io.File
 import org.osmdroid.util.GeoPoint as OsmPoint
 
-/** ARGB color ints. 화면 디자인 쪽에서 채운다. */
+/** ARGB color ints. 화면 디자인 쪽에서 채운다. pickup = 승차 지점 판, pickupInk = 판 위 현대 엠블럼과 테두리. */
 data class MapPalette(
     val car: Int, val carRing: Int,
     val passenger: Int, val passengerRing: Int,
@@ -45,6 +47,11 @@ data class MapTheme(val dark: Boolean, val palette: MapPalette)
 
 private const val ATTRIBUTION = "© OpenStreetMap contributors"
 private val DEFAULT_CENTER = OsmPoint(37.4988, 127.0614)
+
+/** 승차 지점 마커의 현대 엠블럼 (벡터 출처: Wikimedia Commons "Hyundai Motor Company logo.svg", 공개 도메인·상표). 원본 좌표계 93.78 × 47.77. */
+private const val EMBLEM_PATH = "m 56.707,29.416 c 0.714,3.69 -1.22,6.755 -2.827,9.73 -1.785,2.768 -4.731,5.147 -8.272,4.791 -7.946,-0.119 -15.712,-1.339 -22.914,-3.512 -0.327,-0.089 -0.654,-0.298 -0.833,-0.595 -0.149,-0.417 0.06,-0.804 0.357,-1.071 6.577,-5.327 14.403,-7.796 22.14,-10.386 2.886,-0.833 5.952,-1.726 9.195,-1.309 1.338,0.179 2.677,1.102 3.154,2.352 z M 83.816,13.645 c 3.69,3.035 7.023,7.172 5.892,12.171 -1.845,7.38 -9.879,11.308 -16.277,13.807 -3.482,1.161 -6.993,2.352 -10.802,2.709 -0.238,-0.03 -0.625,0.029 -0.685,-0.328 l 0.089,-0.416 c 5.416,-6.101 9.522,-12.944 13.124,-19.878 1.666,-3.125 3.214,-6.338 4.642,-9.493 0.208,-0.238 0.417,-0.357 0.655,-0.446 1.338,0.118 2.291,1.16 3.362,1.874 z M 31.888,5.789 31.769,6.235 C 23.943,15.132 18.795,25.458 13.915,35.724 12.963,36.617 12.04,35.426 11.177,35.039 6.832,32.183 2.904,27.57 4.035,22.095 5.85,14.954 13.2,11.145 19.331,8.557 c 3.63,-1.369 7.41,-2.47 11.397,-3.095 0.417,-10e-4 0.952,-0.06 1.16,0.327 z m 38.835,1.428 c 0.446,0.238 0.982,0.327 1.25,0.773 0.238,0.506 -0.238,0.833 -0.506,1.161 -6.16,4.82 -13.212,7.499 -20.414,9.85 -3.661,0.893 -7.351,2.5 -11.427,1.607 -0.953,-0.238 -1.815,-0.863 -2.351,-1.786 -1.012,-2.797 0.357,-5.713 1.547,-8.153 1.577,-3.065 4.375,-6.666 8.243,-6.725 8.332,-0.06 16.188,1.19 23.658,3.273 z M 81.019,7.455 C 87.328,10.907 94.47,16.977 93.726,25.071 92.863,32.57 85.87,37.807 79.621,40.962 61.379,49.681 35.758,49.948 16.921,42.331 10.552,39.683 3.41,35.13 0.731,28.285 -1.322,22.661 1.177,16.799 5.374,12.901 14.152,4.926 25.341,2.189 36.858,0.611 c 12.499,-1.518 25.651,-0.179 36.84,3.66 2.5,0.923 4.97,1.935 7.321,3.184 z"
+private const val EMBLEM_W = 93.78f
+private const val EMBLEM_H = 47.77f
 
 /** OSM 표준 타일(키 불필요). 밤에는 타일에 색 행렬(채도 낮춤 + 반전)을 씌워 어두운 지도로 만든다. */
 private val OSM_TILES = XYTileSource(
@@ -169,6 +176,8 @@ private class MajungOverlay(private val density: Float) : Overlay() {
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val chevron = Path()
+    // 원본 SVG 의 fill-rule=evenodd: 타원 안의 네 조각이 H 와 테두리 사이의 빈 곳(구멍)이다.
+    private val emblem: Path by lazy { PathParser().parsePathString(EMBLEM_PATH).toPath().asAndroidPath().apply { fillType = Path.FillType.EVEN_ODD } }
     private val tmp = Point()
 
     private fun dp(v: Float) = v * density
@@ -211,13 +220,22 @@ private class MajungOverlay(private val density: Float) : Overlay() {
         stroke.pathEffect = null
     }
 
+    /** 승차 지점: 흰 판(88×56 dp) 위 현대 엠블럼(너비 72 dp). */
     private fun drawPickup(canvas: Canvas, c: FloatArray, pal: MapPalette) {
-        val half = dp(26f)  // 52 dp 판
+        val hw = dp(44f)
+        val hh = dp(28f)
         val corner = dp(10f)
         fill.color = pal.pickup
-        canvas.drawRoundRect(c[0] - half, c[1] - half, c[0] + half, c[1] + half, corner, corner, fill)
-        stroke.color = pal.pickupInk; stroke.strokeWidth = dp(4f)
-        canvas.drawRoundRect(c[0] - half, c[1] - half, c[0] + half, c[1] + half, corner, corner, stroke)
+        canvas.drawRoundRect(c[0] - hw, c[1] - hh, c[0] + hw, c[1] + hh, corner, corner, fill)
+        stroke.color = pal.pickupInk; stroke.strokeWidth = dp(2f)
+        canvas.drawRoundRect(c[0] - hw, c[1] - hh, c[0] + hw, c[1] + hh, corner, corner, stroke)
+        val s = dp(72f) / EMBLEM_W
+        canvas.save()
+        canvas.translate(c[0] - EMBLEM_W * s / 2f, c[1] - EMBLEM_H * s / 2f)
+        canvas.scale(s, s)
+        fill.color = pal.pickupInk
+        canvas.drawPath(emblem, fill)
+        canvas.restore()
     }
 
     private fun drawPassenger(canvas: Canvas, c: FloatArray, pal: MapPalette) {

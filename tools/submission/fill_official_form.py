@@ -170,7 +170,7 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None):
         + heading("나. 6단계 흐름 — 트리거는 모두 차량 신호, 운전자가 누르는 버튼은 하나")
         + table(["단계", "트리거 (차량 신호)", "차량 → 동승자 웹 / 차량 제어", "SDK · API"],
                 [["1 합의", "운전자 \"픽업 시작\" 또는 Gleo 음성 START_SAFE_PICKUP", "기준 간판·차종·번호판 끝 4자리·일회성 웹 링크(최대 20분)", "NaviHelper.requestRoute(WithWaypoints), CarInfo.getVINInfo"],
-                 ["2 접근", "반경 80m + ≤25km/h + 우측 방향지시등 (또는 50m 저속 폴백)", "지도에 내 차·동승자·승차 지점, \"차가 오고 있어요\" + 거리. 운전자 [여기 못 서요] → 건너편(U턴)/앞으로 30m/한 바퀴 → 승차 지점 이동·재경로·동승자 웹 즉시 반영. 동승자 간편 제안(여기서 태워 주세요/건너편으로 갈게요/2분만 기다려 주세요) → 카드로 수락/나중에. 도착 전 공조 사전 설정(유아 카시트 좌석 열선 0 고정)", "FusedLocation.registerFusedLocationCallback, TurnSignal.registerTurnSignalState, NaviHelper.requestRoute(재경로), HVAC.setHvacFanSpeed/Temperature, Seat.setHvacSeatTemperature"],
+                 ["2 접근", "반경 80m + ≤25km/h + 우측 방향지시등 (또는 50m 저속 폴백)", "지도에 내 차·동승자·승차 지점, \"차가 오고 있어요\" + 거리. 운전자 [여기 못 서요] → 건너편(U턴)/앞으로 30m/한 바퀴 → 승차 지점 이동·재경로·동승자 웹 즉시 반영. 동승자 간편 제안(지도에서 탈 자리를 골라 보내는 \"여기서 탈게요\"/건너편으로 갈게요/2분만 기다려 주세요) → 카드로 수락/나중에, 수락 시 그 좌표로 승차 지점 이동·재경로. 도착 전 공조 사전 설정(유아 카시트 좌석 열선 0 고정)", "FusedLocation.registerFusedLocationCallback, TurnSignal.registerTurnSignalState, NaviHelper.requestRoute(재경로), HVAC.setHvacFanSpeed/Temperature, Seat.setHvacSeatTemperature"],
                  ["3 식별", "—", "차종(VIN) + 번호판 끝 4자리 상시 노출", "CarInfo.getVINInfo (미지원 시 운전자 입력 폴백)"],
                  ["4 정차", "기어 P + 차속 0 + 60m 이내", "\"차가 멈췄어요\" + 지도상 정차 위치 (Gleo 음성 SHARE_PICKUP_OFFSET으로 간판 앞/정면/뒤 지정도 가능)", "Gear.registerGearSelection, FusedLocation confidence"],
                  ["5 맞이", "운전자 [주변 확인 끝, 문 열기] (유일한 수동, P단 아니면 거부) → 문 열림 → 착좌", "조수석 잠금 해제·창문 25%(와이퍼 작동 시 0%)·하향등 ON일 때 독서등·TTS \"○○님, 반갑습니다\"", "Door.setDoorLock, Window.setWindowPosition, Light.setReadingLightSwitch, Light.registerLowBeamLightState, Seat.registerSeatOccupancy, TextToSpeech(ON_DEVICE)"],
@@ -273,7 +273,7 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None):
     if ivi_png and ivi_png.exists():
         ref += images.add(ivi_png, 16.0, "그림 1. Pleos Connect v2.1.0 에뮬레이터(런처 오른쪽 앱 영역)에서 실행 중인 pleos 빌드 — 지도 위 동승자·내 차·승차 지점, 상태 판, [여기 못 서요] 버튼.")
     if web_png and web_png.exists():
-        ref += images.add(web_png, 7.0, "그림 2. 동승자 무설치 웹 — 지도(차·나·승차 지점), 번호판 끝 4자리, 간편 제안 세 개. 상태 블록은 차량 신호(P단 정차·문·벨트)로만 바뀐다.")
+        ref += images.add(web_png, 7.0, "그림 2. 동승자 무설치 웹 — 지도(차·나·승차 지점), 번호판 끝 4자리, 간편 제안 세 개(여기서 탈게요는 지도에서 자리를 골라 보냄). 상태 블록은 차량 신호(P단 정차·문·벨트)로만 바뀐다.")
     c['reference_link'] = ref
 
     c['shortform_link'] = body("미참여 (공란 제출)")

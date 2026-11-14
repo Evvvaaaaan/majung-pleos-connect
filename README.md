@@ -6,7 +6,7 @@
 
 **화면은 지도 하나, 할 일 하나 (v3):**
 - **차량 화면** — 지도 위에 동승자 위치·내 차·승차 지점만. 가는 동안 누를 버튼은 **[여기 못 서요]** 하나(건너편(U턴) / 앞으로 30 m / 한 바퀴 → 승차 지점 이동 + NaviHelper 재경로 + 동승자 웹 즉시 반영), 멈춘 뒤에는 **[주변 확인 끝, 문 열기]** 하나. 동승자의 간편 제안은 카드로 도착해 [수락]/[나중에]. 차량 신호·로그는 연결 칩을 눌러 여는 진단 창으로 옮겼습니다.
-- **동승자 웹** — 지도(차·나·승차 지점), 번호판 끝 4자리, 간편 제안 세 개("여기서 태워 주세요", "건너편으로 갈게요", "2분만 기다려 주세요"). 차가 P단에 서면 "지금 타도 돼요"로 바뀝니다.
+- **동승자 웹** — 지도(차·나·승차 지점), 번호판 끝 4자리, 간편 제안 세 개("여기서 탈게요"는 지도를 움직여 탈 자리를 핀에 맞춘 뒤 보내며 그 좌표가 차량에 전달됨, "건너편으로 갈게요", "2분만 기다려 주세요"). 차가 P단에 서면 "지금 타도 돼요"로 바뀝니다.
 - 디자인은 Pleos Connect 런처의 결(밝은 바탕, 검은 판, 작은 라운드, 얇은 선, 시스템 서체)을 따르고 하향등이 켜지면 밤 토큰으로 바뀝니다. 세 가지 후보를 비교한 시안: [`docs/design/`](docs/design/README.md)
 
 | 폰은 모른다 | 차는 안다 (Vehicle SDK 신호) | 마중이 하는 일 |
@@ -34,7 +34,7 @@
 | 단계 | 트리거 | 차량 → 동승자 웹 / 차량 제어 | 사용 API |
 | :-- | :-- | :-- | :-- |
 | 1 합의 | 운전자 "픽업 시작" (또는 Gleo 음성 `START_SAFE_PICKUP`) | 기준 간판·차종·번호판 끝 4자리·일회성 링크(최대 20분) | `NaviHelper.requestRoute(WithWaypoints)`, `CarInfo.getVINInfo` |
-| 2 접근 | 반경 80m + ≤25km/h + 우측 방향지시등 (또는 50m 저속 폴백) | 지도에 내 차·동승자·승차 지점, "차가 오고 있어요" + 거리 · **도착 전 사전 공조**(유아 카시트 좌석 열선 0 고정) · 운전자 [여기 못 서요] → 건너편(U턴)/앞으로 30 m/한 바퀴 → 승차 지점 이동 + 재경로 · 동승자 간편 제안 → [수락]/[나중에] | `FusedLocation.registerFusedLocationCallback`, `TurnSignal.register…`, `NaviHelper.requestRoute`(재경로), `HVAC.setHvacFanSpeed/Temperature`, `Seat.setHvacSeatTemperature` |
+| 2 접근 | 반경 80m + ≤25km/h + 우측 방향지시등 (또는 50m 저속 폴백) | 지도에 내 차·동승자·승차 지점, "차가 오고 있어요" + 거리 · **도착 전 사전 공조**(유아 카시트 좌석 열선 0 고정) · 운전자 [여기 못 서요] → 건너편(U턴)/앞으로 30 m/한 바퀴 → 승차 지점 이동 + 재경로 · 동승자 간편 제안(지도에서 고른 자리 포함) → [수락]/[나중에] | `FusedLocation.registerFusedLocationCallback`, `TurnSignal.register…`, `NaviHelper.requestRoute`(재경로), `HVAC.setHvacFanSpeed/Temperature`, `Seat.setHvacSeatTemperature` |
 | 3 식별 | — | 차종(VIN) + 번호판 끝 4자리 상시 노출 | `CarInfo.getVINInfo` (실패 시 운전자 입력) |
 | 4 정차 | **기어 P + 차속 0** + 60m 이내 | "차가 멈췄어요" + 지도상 정차 위치 (Gleo 음성 `SHARE_PICKUP_OFFSET`으로 간판 앞/정면/뒤 지정도 가능) | `Gear.registerGearSelection`, `FusedLocation` confidence |
 | 5 맞이 | 운전자 [주변 확인 끝, 문 열기] → 문 열림 → 착좌 | 잠금 해제·창문 25%(와이퍼 작동 시 0%)·하향등 ON일 때 독서등·"○○님, 반갑습니다" | `Door.setDoorLock`, `Window.setWindowPosition`, `Light.setReadingLightSwitch`, `Light.registerLowBeamLightState`, `Seat.registerSeatOccupancy`, Pleos `TextToSpeech` |
@@ -123,9 +123,9 @@ JDK 17 · Android SDK API 34 · Gradle 8.10.2(wrapper 포함) · minSdk 28 / tar
 ## 5. 디자인
 
 - **근거**: Pleos Connect v2.1.0 런처를 에뮬레이터에서 캡처해 호스트의 결(낮: 밝은 회색 바탕, 검은 검색판, 흰 판에 얇은 선, 작은 라운드, 시스템 한글 서체)을 뽑고, 현대 공식 사이트 CSS에서 브랜드 블루(#002C5F)의 색상각(258)을 파란 신호에 썼습니다. 세 방향(사인보드 / 계기판 / 반투명 플라스틱)을 Hallmark 디자인 스킬로 시안화해 비교한 뒤 **사인보드 방향을 Pleos 결로 다듬어** 채택했습니다.
-- **차량 화면**: 지도 전면, 상태 판 하나(검은 판, 64sp 헤드라인, 124sp 거리 숫자), 연결 칩 하나, 아래 버튼 한 줄. 라운드 12dp·선 2dp·그림자 없음. 코발트는 '지금 살아 있는 것'(내 차 마커, 연결 점)에만, 호박색은 지도 위 승차 지점에만. 하향등 ON 또는 시스템 야간 모드면 밤 토큰(검은 판 → 흰 판, 지도 색 행렬 필터). 토큰: `ui/MajungTheme.kt`, 화면: `ui/MajungIviScreen.kt`
-- **동승자 웹**: 같은 토큰의 낮 모드. Pretendard, 라운드 12/10/8px, 얇은 선. 지도(Leaflet + OSM) 위에 파란 원의 내 차, 먹색 점의 나, 호박색 판의 승차 지점. 번호판 끝 4자리는 흰 번호판 스타일. 상태 블록은 오직 차량 신호로만 바뀐다. `web-companion/index.html`
-- 로고·전용 서체 등 상표 자산은 사용하지 않았습니다. 지도 타일: © OpenStreetMap contributors.
+- **차량 화면**: 지도 전면, 상태 판 하나(검은 판, 64sp 헤드라인, 124sp 거리 숫자), 연결 칩 하나, 아래 버튼 한 줄. 라운드 12dp·선 2dp·그림자 없음. 코발트는 '지금 살아 있는 것'(내 차 마커, 연결 점)에만, 승차 지점은 흰 판 위 현대 엠블럼. 하향등 ON 또는 시스템 야간 모드면 밤 토큰(검은 판 → 흰 판, 지도 색 행렬 필터). 토큰: `ui/MajungTheme.kt`, 화면: `ui/MajungIviScreen.kt`
+- **동승자 웹**: 같은 토큰의 낮 모드. Pretendard, 라운드 12/10/8px, 얇은 선. 지도(Leaflet + OSM) 위에 파란 원의 내 차, 먹색 점의 나, 현대 엠블럼의 승차 지점(지도에서 자리를 고르는 핀도 같은 엠블럼). 번호판 끝 4자리는 흰 번호판 스타일. 상태 블록은 오직 차량 신호로만 바뀐다. `web-companion/index.html`
+- 승차 지점 마커의 현대 엠블럼은 현대자동차의 등록상표입니다(벡터 출처: Wikimedia Commons `Hyundai Motor Company logo.svg`, 공개 도메인·상표 보호). 이 공모전 출품작의 시연 범위에서만 쓰며, 전용 서체는 사용하지 않았습니다. 지도 타일: © OpenStreetMap contributors.
 
 ---
 

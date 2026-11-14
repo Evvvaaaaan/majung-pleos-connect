@@ -67,6 +67,7 @@ MajungFlow: 수동 탑승 확인 → 창문·조명·공조 원복 · 세션 즉
 | 동승자 위치 수신 | 동승자 웹(또는 `POST /api/v1/sessions/:id/passenger-location`) → 중계 SSE `PASSENGER_LOCATION` → 지도에 먹색 점 + 정확도 원, 연결 칩 "동승자 연결됨" |
 | 동승자 간편 제안 | `POST /suggest` → SSE `PASSENGER_SUGGESTION` → IVI 카드 "지수님의 제안 / 2분만 기다려 주세요" → [수락] → 중계 상태 `suggestionReply=ACCEPTED` (타임라인 65.9초) |
 | 여기 못 서요 → 앞으로 30 m | 승차 지점 이동(`pickupVersion` 1→2), `NaviHelper.requestRoute` 재호출(내비 앱 전면 전환 후 복귀), 상태 판에 "앞으로 30 m" |
+| 지도에서 자리 고르기 → 여기서 탈게요 (v3.2) | 동승자 웹에서 지도를 움직여 핀을 맞추고 [여기서 탈게요] → `POST /suggest` `{kind:PICKUP_HERE, lat:37.499338, lng:127.062222}` → IVI 카드 "여기서 탈게요 / 승차 지점에서 92 m" → [수락] → 승차 지점이 그 좌표로 이동(`pickupVersion` 1→2, 라벨 "동승자 위치"), 동승자 웹 "운전자가 수락했어요" (세션 `mj-58098f41`) |
 | 차량 위치 (디버그 adb 훅) | `am broadcast -a io.majung.pleos.DEBUG_LOCATION` → `MajungHub: [DEBUG adb] location(37.49880, 127.05800, heading=90.0)` → 지도 파란 원 마커, 거리 숫자 |
 | 접근 감지 → P단 정차 | `접근 감지 · 반경 60m 감속 + 우측 방향지시등 진입 감지` → 기어 P + 차속 0 → `P단 정차 확정` → 중계 `phase=STEP4_CURBSIDE_STOPPED, stoppedInPark=true` |
 | 하향등 ON → 밤 화면 | `lowBeam=ON` 콜백으로 밤 토큰(검은 판 → 흰 판, 지도 필터) 전환 |
@@ -79,6 +80,8 @@ MajungFlow: light.setReadingLightSwitch(ROW_1_RIGHT, ON) -> onComplete(ON)
 MajungFlow: 착좌 감지 → 환대 인사: 지수님, 반갑습니다.
 MajungFlow: 수동 탑승 확인 → 창문·조명·공조 원복 · 세션 즉시 파기          → 중계 SESSION_SHREDDED
 ```
+
+승차 지점 마커(v3.2): 차량 화면과 동승자 웹 모두 흰 판 위 현대 엠블럼으로 그린다(`ui/map/MajungMapView.kt`의 `drawPickup`, 웹의 `.mk-pick`). 엠블럼 경로는 원본 SVG의 evenodd 채우기 규칙을 그대로 써야 H 가 비어 보인다 — nonzero 로 그리면 타원이 통째로 채워진다(에뮬레이터·Chrome 양쪽에서 확인 후 수정). 스크린샷: `docs/screenshots/pleos_emulator_v3_approach.png`, `pleos_emulator_v3_suggestion.png`, `passenger_web_v3.png`.
 
 접근 제어(v3.1): 중계 서버는 차량 키(`X-Majung-Car-Key`)와 동승자 토큰(`?t=`)을 세션 생성 시 받아 두고, 키 없는 차량 쪽 호출과 토큰 없는 동승자 쪽 호출을 403으로 거부한다. `node relay-server/verify_e2e_sse.mjs`가 허용·거부 경로를 모두 검증한다.
 
