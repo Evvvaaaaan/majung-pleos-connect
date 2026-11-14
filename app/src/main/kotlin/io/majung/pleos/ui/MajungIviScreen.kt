@@ -68,7 +68,9 @@ data class IviInputs(
 data class SimControls(
     val onDrive: () -> Unit,
     val onBoarding: () -> Unit,
-    val onWrongDoor: () -> Unit
+    val onWrongDoor: () -> Unit,
+    /** 중계 서버 없이도 동승자 제안 카드와 고른 자리 표시를 볼 수 있게, 동승자 위치와 "여기서 탈게요"를 기기 안에서 주입한다. */
+    val onPassengerSuggest: () -> Unit
 )
 
 /**
@@ -224,6 +226,7 @@ fun MajungIviScreen(
     if (simOpen && simControls != null) {
         PlateDialog(t, "시뮬레이션 (sim 빌드 전용)", onDismiss = { simOpen = false }) {
             PlateButton(t, "주행 후 간판 앞 P단 정차", Tone.SECONDARY, enabled = active, onClick = { simOpen = false; simControls.onDrive() }, modifier = Modifier.fillMaxWidth())
+            PlateButton(t, "동승자 제안: 여기서 탈게요 (서버 없이)", Tone.SECONDARY, enabled = active && session.pendingSuggestion == null && session.phase != PickupPhase.STEP5_BOARDING_WELCOME, onClick = { simOpen = false; simControls.onPassengerSuggest() }, modifier = Modifier.fillMaxWidth())
             PlateButton(t, "동승자 탑승 (문, 착좌, 벨트)", Tone.SECONDARY, enabled = session.phase == PickupPhase.STEP5_BOARDING_WELCOME, onClick = { simOpen = false; simControls.onBoarding() }, modifier = Modifier.fillMaxWidth())
             PlateButton(t, "차도 쪽 문 잘못 열림", Tone.SECONDARY, enabled = active, onClick = { simOpen = false; simControls.onWrongDoor() }, modifier = Modifier.fillMaxWidth())
         }

@@ -23,7 +23,10 @@ import io.majung.pleos.finder.ManualOffsetPreset
 import io.majung.pleos.gleo.GleoActionReceiver
 import io.majung.pleos.gleo.GleoCommandBus
 import io.majung.pleos.gleo.GleoProtocolCodec
+import io.majung.pleos.model.GeoPoint
 import io.majung.pleos.model.PassengerProfile
+import io.majung.pleos.model.PassengerSuggestion
+import io.majung.pleos.model.SuggestionKind
 import io.majung.pleos.orchestrator.PickupEtaOrchestrator
 import io.majung.pleos.orchestrator.PickupInputs
 import io.majung.pleos.orchestrator.SafePitstopResolver
@@ -177,7 +180,16 @@ class MainActivity : ComponentActivity() {
                     simControls = if (isSim) SimControls(
                         onDrive = { runtimeBridge.playSimulatedApproachAndStop { l -> runOnUiThread { sdkCallbackLog = l } } },
                         onBoarding = { runtimeBridge.playSimulatedPassengerBoarding { l -> runOnUiThread { sdkCallbackLog = l } } },
-                        onWrongDoor = { runtimeBridge.playSimulatedTrafficSideDoorMistake { l -> runOnUiThread { sdkCallbackLog = l } } }
+                        onWrongDoor = { runtimeBridge.playSimulatedTrafficSideDoorMistake { l -> runOnUiThread { sdkCallbackLog = l } } },
+                        onPassengerSuggest = {
+                            // 승차 지점에서 동쪽으로 약 30 m: 중계 서버가 보내는 것과 같은 두 호출을 그대로 탄다
+                            orchestrator.uiState.value.liveMap.pickup?.let { p ->
+                                val now = System.currentTimeMillis()
+                                val spot = GeoPoint(p.lat, p.lng + 30.0 / 88_300.0)
+                                orchestrator.onPassengerLocation(spot, 12.0, now)
+                                orchestrator.onPassengerSuggestion(PassengerSuggestion("sim-$now", SuggestionKind.PICKUP_HERE, "여기서 탈게요", spot, null, now))
+                            }
+                        }
                     ) else null
                 )
             }
