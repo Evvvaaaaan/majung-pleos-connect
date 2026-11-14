@@ -5,6 +5,7 @@
 - 01 참가신청서 · 03/04 동의·서명은 개인정보라 비워 둔다(참가자가 직접 기입·서명).
 - 앱명 / 프로젝트명 공란만 "마중 (MAJUNG)"으로 채운다.
 - 사용: python3 tools/submission/fill_official_form.py <official.docx> <out.docx> [--ivi img.png] [--web img.png] [--icon img.png]
+        [--personal 개인정보.json]  ← 01 참가신청서·04 서명표까지 채운 제출용 사본. JSON 은 저장소 밖에 두고 결과물도 저장소에 넣지 않는다.
 """
 import re
 import shutil
@@ -310,8 +311,77 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None, icon_png
     return c
 
 
+# ------------------------------------------------------------------ 01 참가신청서 (개인정보: 저장소 밖의 JSON으로만 받는다)
+def set_paragraph_text(p: str, text: str) -> str:
+    """문단의 run 들을 첫 run 의 서식을 유지한 한 run 으로 바꾼다 (밑줄 공란 → 값)."""
+    m = re.search(r'<w:r\b[^>]*>(<w:rPr>.*?</w:rPr>)', p, flags=re.S)
+    rpr = m.group(1) if m else ''
+    body = re.sub(r'<w:proofErr[^>]*/>', '', p)
+    body = re.sub(r'<w:r\b.*?</w:r>', '', body, flags=re.S)
+    return body.replace('</w:p>', f'<w:r>{rpr}<w:t xml:space="preserve">{escape(text)}</w:t></w:r></w:p>')
+
+
+def fill_table_cells(xml: str, header_marker: str, row_index: int, values: dict, size: int | None = 16) -> str:
+    """헤더에 header_marker 가 있는 표의 row_index 행에서 {열 번호: 값} 을 채운다."""
+    def rep(m):
+        tbl = m.group(0)
+        rows = re.findall(r'<w:tr\b.*?</w:tr>', tbl, flags=re.S)
+        if not rows or header_marker not in ''.join(re.findall(r'<w:t[^>]*>(.*?)</w:t>', rows[0], flags=re.S)):
+            return tbl
+        row = rows[row_index]
+        cells = re.findall(r'<w:tc>.*?</w:tc>', row, flags=re.S)
+        new_row = row
+        for ci, val in values.items():
+            c = cells[ci]
+            rpr = f'<w:rPr><w:sz w:val="{size}"/><w:szCs w:val="{size}"/></w:rPr>' if size else ''
+            run = f'<w:r>{rpr}<w:t xml:space="preserve">{escape(val)}</w:t></w:r>'
+            if re.search(r'<w:p\b[^>]*/>', c):
+                nc = re.sub(r'<w:p\b([^>]*)/>', lambda r: '<w:p' + r.group(1) + '>' + run + '</w:p>', c, count=1)
+            else:
+                nc = c.replace('</w:p>', run + '</w:p>', 1)
+            new_row = new_row.replace(c, nc, 1)
+        return tbl.replace(row, new_row, 1)
+    return re.sub(r'<w:tbl>.*?</w:tbl>', rep, xml, flags=re.S)
+
+
+def fill_personal(xml: str, info: dict) -> str:
+    """01 참가신청서·04 서명표의 공란을 info 로 채운다. info 는 저장소 밖 JSON (성명·연락처는 저장소에 넣지 않는다).
+    키: unit(개인|팀), division(대학(원)생|일반), rep_name, rep_role, members_count, date(YYYY-MM-DD),
+        rep_affiliation, rep_email, rep_phone, members[{name, affiliation, phone, email, role}]"""
+    def para_sub(prefix, new_text):
+        nonlocal xml
+        def rep(m):
+            p = m.group(0)
+            text = ''.join(re.findall(r'<w:t[^>]*>(.*?)</w:t>', p, flags=re.S))
+            return set_paragraph_text(p, new_text) if text.strip().startswith(prefix) else p
+        xml = re.sub(r'<w:p\b(?:(?!<w:p\b).)*?</w:p>', rep, xml, flags=re.S)
+    box = lambda on: '■' if on else '□'
+    if info.get('unit'):
+        para_sub('참가 단위:', f"참가 단위: {box(info['unit'] == '개인')} 개인           {box(info['unit'] == '팀')} 팀")
+    if info.get('division'):
+        para_sub('참가 부문:', f"참가 부문: {box('대학' in info['division'])} 대학(원)생    {box('일반' in info['division'])} 일반(스타트업 포함)")
+    if info.get('rep_name'):
+        para_sub('대표자 성명:', f"대표자 성명: {info['rep_name']}    역할: {info.get('rep_role', '')}")
+    if info.get('rep_affiliation'):
+        para_sub('대표자 소속', f"대표자 소속(학교/학과/회사명/무소속 등): {info['rep_affiliation']}")
+    if info.get('rep_email'):
+        para_sub('대표자 이메일:', f"대표자 이메일: {info['rep_email']}")
+    if info.get('rep_phone'):
+        para_sub('대표자 휴대폰번호', f"대표자 휴대폰번호: {info['rep_phone']}")
+    if info.get('members_count'):
+        para_sub('참가 인원:', f"참가 인원: {info['members_count']}명")
+    if info.get('date'):
+        y, mo, d = info['date'].split('-')
+        para_sub('작성일:', f"작성일: {int(y)}년 {int(mo)}월 {int(d)}일")
+    for i, mem in enumerate(info.get('members', [])[:5]):
+        vals = {0: mem.get('name', ''), 1: mem.get('affiliation', ''), 2: mem.get('phone', ''), 3: mem.get('email', ''), 4: mem.get('role', '')}
+        xml = fill_table_cells(xml, '담당 역할', 1 + i, {k: v for k, v in vals.items() if v})
+        xml = fill_table_cells(xml, '서명일자', 1 + i, {1: mem.get('name', '')}, size=None)
+    return xml
+
+
 # ------------------------------------------------------------------ 적용
-def fill(official: Path, out: Path, ivi_png: Path | None, web_png: Path | None, icon_png: Path | None = None):
+def fill(official: Path, out: Path, ivi_png: Path | None, web_png: Path | None, icon_png: Path | None = None, personal: dict | None = None):
     tmp = Path(tempfile.mkdtemp(prefix='majung-form-'))
     with zipfile.ZipFile(official) as z:
         z.extractall(tmp)
@@ -355,6 +425,11 @@ def fill(official: Path, out: Path, ivi_png: Path | None, web_png: Path | None, 
     xml = re.sub(r'<w:p\b(?:(?!<w:p\b).)*?</w:p>', fill_team_name, xml, flags=re.S)
     print(f'team-name fields filled={team_filled}')
 
+    # 4) (선택) 01 참가신청서·04 서명표 — 제출용 사본에만, 저장소 밖 JSON 으로
+    if personal:
+        xml = fill_personal(xml, personal)
+        print('personal fields filled (01/04) from', personal.get('_source', 'json'))
+
     doc_path.write_text(xml, encoding='utf-8')
     images.save()
     if out.exists():
@@ -374,4 +449,9 @@ if __name__ == '__main__':
     ivi = Path(a[a.index('--ivi') + 1]) if '--ivi' in a else None
     web = Path(a[a.index('--web') + 1]) if '--web' in a else None
     icon = Path(a[a.index('--icon') + 1]) if '--icon' in a else None
-    fill(Path(a[0]), Path(a[1]), ivi, web, icon)
+    personal = None
+    if '--personal' in a:
+        import json
+        pj = Path(a[a.index('--personal') + 1])
+        personal = json.loads(pj.read_text(encoding='utf-8')); personal['_source'] = pj.name
+    fill(Path(a[0]), Path(a[1]), ivi, web, icon, personal)
