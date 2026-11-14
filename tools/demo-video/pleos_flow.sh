@@ -14,6 +14,7 @@ export PATH="$PATH:$HOME/Library/Android/sdk/platform-tools"
 VC="http://127.0.0.1:8088"; RELAY="http://127.0.0.1:8080"
 PICK_LAT=37.498812; PICK_LNG=127.061420     # 파리바게뜨 대치점 (safe_pitstops_kr.json)
 PAX_LAT=37.498930;  PAX_LNG=127.061640      # 동승자: 간판 앞 인도, 북동쪽 약 25 m
+PROP_LAT=37.498930; PROP_LNG=127.062050     # 동승자가 지도에서 고른 자리: '앞으로 30 m' 지점에서 동북쪽 약 29 m (render.mjs --pickLat/--pickLng 와 같아야 한다)
 
 now_ms() { python3 -c 'import time;print(int(time.time()*1000))'; }
 tap() { timeout 10 adb shell input tap "$1" "$2" >/dev/null; }
@@ -59,10 +60,12 @@ sleep 3.5;       mark option;   tap 1624 1148               # 앞으로 30 m →
 sleep 4;         front; sleep 2; mark back2
 loc 37.4988 "$(west 170)" 90
 sleep 3;         loc 37.4988 "$(west 110)" 90; vc "controls?speed=22"
-sleep 3;         curl -s -m 3 -X POST "$RELAY/api/v1/sessions/$(sid)/suggest?t=$(tok)" -H 'Content-Type: application/json' -d '{"kind":"WAIT_MINUTES","text":"2분만 기다려 주세요","minutes":2}' >/dev/null; mark suggest
-sleep 4;         mark accept;   tap 2053 1078               # 수락
-sleep 3;         loc 37.498812 "$(python3 -c "print($PICK_LNG + 30/88300.0 - 60/88300.0)")" 90; vc "turn-signal?mode=BlinkRight"; vc "controls?speed=12"; mark near   # 새 승차 지점(+30 m) 60 m 앞, 우측 방향지시등 → 접근 감지
-sleep 4;         loc 37.498812 "$(python3 -c "print($PICK_LNG + 30/88300.0)")" 90; vc "controls?speed=0&brake=80"; vc "gear?gear=Park"; vc "turn-signal?mode=Off"; mark stop   # 앞으로 30 m 지점에 P단 정차
+sleep 2;         mark pick                                  # (동승자 웹) 지도를 움직여 탈 자리에 핀을 맞추는 중 — 합성 때 핀 장면으로 쓴다
+sleep 4;         curl -s -m 3 -X POST "$RELAY/api/v1/sessions/$(sid)/suggest?t=$(tok)" -H 'Content-Type: application/json' -d "{\"kind\":\"PICKUP_HERE\",\"text\":\"여기서 탈게요\",\"lat\":$PROP_LAT,\"lng\":$PROP_LNG}" >/dev/null; mark suggest
+sleep 4;         mark accept;   tap 2053 1078               # 수락 → 승차 지점이 고른 자리로, 재경로(내비 앱 전면)
+sleep 4;         front; sleep 2; mark back3
+sleep 1;         loc "$PROP_LAT" "$(python3 -c "print($PROP_LNG - 60/88300.0)")" 90; vc "turn-signal?mode=BlinkRight"; vc "controls?speed=12"; mark near   # 고른 자리 60 m 앞, 우측 방향지시등 → 접근 감지
+sleep 4;         loc "$PROP_LAT" "$PROP_LNG" 90; vc "controls?speed=0&brake=80"; vc "gear?gear=Park"; vc "turn-signal?mode=Off"; mark stop   # 동승자가 고른 자리에 P단 정차
 # 에뮬레이터의 차속은 서서히 줄어든다 — 기어 P + 차속 0 (stoppedInPark)이 중계 상태에 보일 때까지 기다린다
 for i in $(seq 1 60); do
   st=$(curl -s -m 2 "$RELAY/api/v1/sessions/$(sid)?t=$(tok)" | python3 -c 'import sys,json;s=json.load(sys.stdin);print("1" if s.get("stoppedInPark") and s.get("phase")=="STEP4_CURBSIDE_STOPPED" else "0")' 2>/dev/null)

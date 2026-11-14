@@ -7,7 +7,7 @@
 **한 줄 설명:** 학원가·역 앞 픽업의 마지막 100m에서, 차와 동승자가 **한 지도에서 서로를 보고**, 스마트폰 위치 공유가 알 수 없는 세 가지 — 차가 정말 P단에 멈췄는지, 동승자가 어느 문을 열었는지, 안전벨트를 맸는지 — 를 Pleos Vehicle SDK 신호로 확인해 동승자 웹에 "지금 타도 돼요"를 알리고, 벨트 체결과 동시에 위치 공유를 스스로 끝내는 Pleos Connect 차량용 앱.
 
 **화면은 지도 하나, 할 일 하나 (v3):**
-- **차량 화면** — 지도 위에 동승자 위치·내 차·승차 지점만. 가는 동안 누를 버튼은 **[여기 못 서요]** 하나(건너편(U턴) / 앞으로 30 m / 한 바퀴 → 승차 지점 이동 + NaviHelper 재경로 + 동승자 웹 즉시 반영), 멈춘 뒤에는 **[주변 확인 끝, 문 열기]** 하나. 동승자의 간편 제안은 카드로 도착해 [수락]/[나중에]. 차량 신호·로그는 연결 칩을 눌러 여는 진단 창으로 옮겼습니다.
+- **차량 화면** — 지도 위에 동승자 위치·내 차·승차 지점만. 가는 동안 누를 버튼은 **[여기 못 서요]** 하나(건너편(U턴) / 앞으로 30 m / 한 바퀴 → 승차 지점 이동 + NaviHelper 재경로 + 동승자 웹 즉시 반영), 멈춘 뒤에는 **[주변 확인 끝, 문 열기]** 하나. 동승자의 간편 제안은 카드로 도착해 [수락]/[나중에]. 동승자가 지도에서 고른 자리는 수락 전까지 차량 지도에 마중 심볼로 보입니다. 차량 신호·로그는 연결 칩을 눌러 여는 진단 창으로 옮겼습니다.
 - **동승자 웹** — 지도(차·나·승차 지점), 번호판 끝 4자리, 간편 제안 세 개("여기서 탈게요"는 지도를 움직여 탈 자리를 핀에 맞춘 뒤 보내며 그 좌표가 차량에 전달됨, "건너편으로 갈게요", "2분만 기다려 주세요"). 차가 P단에 서면 "지금 타도 돼요"로 바뀝니다.
 - 디자인은 Pleos Connect 런처의 결(밝은 바탕, 검은 판, 작은 라운드, 얇은 선, 시스템 서체)을 따르고 하향등이 켜지면 밤 토큰으로 바뀝니다. 세 가지 후보를 비교한 시안: [`docs/design/`](docs/design/README.md)
 
@@ -25,11 +25,18 @@
 
 <p><img src="docs/screenshots/pleos_emulator_v3_cantstop.png" width="460" alt="여기 못 서요: 건너편(U턴) / 앞으로 30 m / 한 바퀴" /> <img src="docs/screenshots/pleos_emulator_v3_suggestion.png" width="460" alt="동승자 제안 카드: 2분만 기다려 주세요, 수락/나중에" /></p>
 
-**시연 영상:** `docs/demo/majung_demo.mp4` (약 2분 30초 · 1080p). **Pleos Connect v2.1.0 전용 에뮬레이터에서 pleos 빌드 실녹화**(런처 오른쪽 앱 영역) — Virtual Console로 주입한 실제 Vehicle SDK 콜백(기어·차속·방향지시등·도어·착좌·하향등)과 실제 제어 호출(도어 잠금 해제·창문·독서등 `onComplete`), 동승자 위치·간편 제안·'여기 못 서요' 재경로, 낮/밤 전환, 동승자 웹 실시간 중계 상태 동기 재생 + 모션 그래픽 해설·내레이션. 차량 위치만은 Pleos 에뮬레이터에 주입 수단이 없어 디버그 빌드의 adb 훅으로 넣었습니다(4-2절). 재현: `tools/demo-video/pleos_flow.sh` → `tools/demo-video/render.mjs`
+**시연 영상:** `docs/demo/majung_demo.mp4` (약 2분 40초 · 1080p). **Pleos Connect v2.1.0 전용 에뮬레이터에서 pleos 빌드 실녹화**(런처 오른쪽 앱 영역) — Virtual Console로 주입한 실제 Vehicle SDK 콜백(기어·차속·방향지시등·도어·착좌·하향등)과 실제 제어 호출(도어 잠금 해제·창문·독서등 `onComplete`), 동승자 위치·간편 제안·'여기 못 서요' 재경로, 낮/밤 전환, 동승자 웹 실시간 중계 상태 동기 재생 + 모션 그래픽 해설·내레이션. 차량 위치만은 Pleos 에뮬레이터에 주입 수단이 없어 디버그 빌드의 adb 훅으로 넣었습니다(4-2절). 재현: `tools/demo-video/pleos_flow.sh` → `tools/demo-video/render.mjs`
 
 **Pleos Connect 에뮬레이터 검증 기록:** [`docs/verification/pleos_emulator_evidence.md`](docs/verification/pleos_emulator_evidence.md) (SDK 등록 16건 · 콜백 수신 · 제어 onComplete · 능력 조회 결과 · 에뮬레이터 제약과 대응 · v3 지도/위치/제안/재경로 검증), 원본 로그 `docs/verification/pleos_emulator_logcat_demo.txt`(v2) · `pleos_emulator_logcat_v3.txt`(v3 시연), 중계 타임라인 `pleos_emulator_relay_timeline_v3.jsonl`, 단계 시각 `pleos_flow_taps_v3.json`
 
 ---
+
+## 0. 심사위원 3분 체험
+
+1. **영상으로 먼저**: [`docs/demo/majung_demo.mp4`](docs/demo/majung_demo.mp4) — Pleos Connect v2.1.0 에뮬레이터 실녹화와 동승자 웹을 나란히, 단계별 SDK 호출 자막.
+2. **가장 빠른 실행 (일반 Android 에뮬레이터, 2분)**: `PORT=8080 node relay-server/server.mjs` → `apk/majung-v2-sim-release.apk` 설치 → [픽업 시작, 링크 보내기] → 화면 아래 **[시뮬레이션]**에서 "주행 후 간판 앞 P단 정차" → [주변 확인 끝, 문 열기] → "동승자 탑승". 동승자 웹은 `curl http://127.0.0.1:8080/api/v1/sessions/_latest` 가 주는 `sessionId`·`passengerToken`으로 `http://localhost:8080/m/<sessionId>?t=<passengerToken>&demoLat=37.49893&demoLng=127.06164` 를 브라우저에서 엽니다.
+3. **Pleos Connect 에뮬레이터 (실 SDK)**: 위 중계 서버 + `apk/majung-v2-pleos-release.apk` → Virtual Console(127.0.0.1:8088)로 기어 P·차속 0·문·착좌·하향등을 주입하면 차량 화면과 동승자 웹이 즉시 반응합니다. 세부는 4-2절.
+4. **코드에서 확인**: 2절의 표(README 주장 ↔ 소스), `node relay-server/verify_e2e_sse.mjs`, `./gradlew :app:testSimDebugUnitTest`(24건), `docs/verification/pleos_emulator_evidence.md`(실제 SDK 로그).
 
 ## 1. 6단계 흐름과 트리거 신호
 
@@ -111,6 +118,13 @@ PORT=8080 node relay-server/server.mjs
 - 동승자 위치·간편 제안은 동승자 웹(브라우저)에서 보내거나, 시연에서는 `curl -X POST "http://127.0.0.1:8080/api/v1/sessions/<id>/passenger-location?t=<토큰>" -d '{"lat":…,"lng":…,"accuracyM":12}'` 와 `/suggest?t=<토큰>` 로 넣습니다. 세션 id와 동승자 토큰은 같은 PC에서만 응답하는 `GET http://127.0.0.1:8080/api/v1/sessions/_latest` 로 얻습니다(공유 링크 `/m/<id>?t=<토큰>`과 같은 값).
 - 확인된 것: SDK `register*` 16건 등록, 콜백 수신(기어·차속·브레이크·조향·방향지시등·하향등·와이퍼·도어·착좌), 제어 `onComplete`(도어 잠금 해제·창문·독서등), NaviHelper 경로 요청·재경로·TBT 수신, 능력 조회, OSM 지도 타일 로드, 동승자 위치/제안 SSE 수신, '여기 못 서요' 3안, 낮/밤 전환. 제약(벨트 신호·위치 주입 불가, TTS 엔진 미탑재, 착좌 값 반전, 경로 요청 시 내비 앱 전면 전환)은 `docs/verification/pleos_emulator_evidence.md`.
 - SDK: Vehicle 2.3.2 · NaviHelper 3.0.5 · FusedLocation 1.1.3 · TextToSpeech 3.3.1 (`nexus-playground.pleos.ai` 실제 배포 버전)
+
+#### 심사위원·동승자 폰으로 직접 열기 (2차 PT 시연)
+- 차량 화면의 연결 칩(오른쪽 위)을 누르면 **진단** 창에 공유 링크와 **QR**이 뜹니다. 폰으로 찍으면 같은 동승자 웹이 열립니다.
+- 폰이 중계 서버에 닿아야 하므로 **설정**(대기 화면 왼쪽 아래)의 중계 서버 주소를 폰에서 열리는 주소로 바꾼 뒤 세션을 시작합니다.
+  - 같은 Wi‑Fi: `http://<PC의 LAN IP>:8080` — 지도·번호판·제안은 되지만, 폰 브라우저의 위치 공유는 HTTPS가 아니라서 꺼집니다(자리는 지도에서 고를 수 있음).
+  - 위치 공유까지: HTTPS 주소가 필요합니다. 공개 서버에 `node relay-server/server.mjs`를 올리거나, 시연 PC에서 `cloudflared tunnel --url http://localhost:8080`(brew install cloudflared, 계정 불필요)로 받은 `https://….trycloudflare.com` 주소를 설정에 넣습니다. 에뮬레이터도 그 주소로 연결됩니다.
+- 동승자가 폰에서 지도를 움직여 "여기서 탈게요"를 보내면 차량 지도에 그 자리가 마중 심볼로 뜨고, 카드에서 [수락]하면 승차 지점이 옮겨집니다.
 
 ### 4-3. Android Automotive OS 에뮬레이터 / 일반 AVD — sim 플레이버
 - 검증 환경: **Android Automotive OS API 33 (arm64), AVD 2560×1440 @160dpi, RAM 4GB** — 위치 기반 자동 접근·정차 판정까지 포함한 6단계 전체를 실행·녹화했습니다(Pleos 에뮬레이터는 위치 주입이 안 되어 이 부분은 sim으로 시연).

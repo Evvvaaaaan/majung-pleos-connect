@@ -173,7 +173,9 @@ data class GeoPoint(val lat: Double, val lng: Double)
 data class LiveMapState(
     val car: GeoPoint? = null, val carHeadingDeg: Double? = null, val carUpdatedAtMs: Long? = null,
     val passenger: GeoPoint? = null, val passengerAccuracyM: Double? = null, val passengerUpdatedAtMs: Long? = null,
-    val pickup: GeoPoint? = null, val pickupLabel: String = "", val pickupNote: String? = null, val pickupVersion: Int = 0
+    val pickup: GeoPoint? = null, val pickupLabel: String = "", val pickupNote: String? = null, val pickupVersion: Int = 0,
+    /** 동승자가 지도에서 골라 보낸 자리(수락 전). 차량 지도에 마중 심볼로 표시된다. */
+    val proposed: GeoPoint? = null
 )
 
 /** 운전자가 "여기 못 세워요"를 눌렀을 때의 대안 */

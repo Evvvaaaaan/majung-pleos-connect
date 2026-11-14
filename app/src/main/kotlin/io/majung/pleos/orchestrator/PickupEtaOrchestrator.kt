@@ -338,7 +338,10 @@ class PickupEtaOrchestrator(
 
     fun onPassengerSuggestion(s: PassengerSuggestion) {
         val stop = _uiState.value.currentStop ?: return
-        _uiState.value = _uiState.value.copy(pendingSuggestion = s)
+        _uiState.value = _uiState.value.let {
+            // 고른 자리는 수락 전까지 차량 지도에 마중 심볼로 보여 운전자가 어디인지 보고 결정하게 한다
+            it.copy(pendingSuggestion = s, liveMap = it.liveMap.copy(proposed = if (s.kind == SuggestionKind.PICKUP_HERE) s.point else null))
+        }
         emitPickupPrompt("suggestion", "${stop.passengerName}님 제안: ${s.text}", s.atMs)
         if (s.kind == SuggestionKind.READY) {
             _uiState.value = _uiState.value.copy(lastBannerMessage = "${stop.passengerName}님이 준비 완료를 알렸어요")
@@ -358,7 +361,7 @@ class PickupEtaOrchestrator(
                 )
             }
         }
-        _uiState.value = _uiState.value.copy(pendingSuggestion = null)
+        _uiState.value = _uiState.value.let { it.copy(pendingSuggestion = null, liveMap = it.liveMap.copy(proposed = null)) }
         val sessionId = _uiState.value.sessionId
         relayGateway.replySuggestion(sessionId, s.id, accept)
         publishCurrent()
@@ -512,6 +515,9 @@ class PickupEtaOrchestrator(
             remainingEtaSeconds = 0,
             boardingDoorUnlocked = false,
             welcomeGreetingActive = false,
+            // 서버에서 지운 것은 화면에서도 지운다: 대기 중 제안 카드, 동승자 위치, 승차 지점 (내 차 위치만 남긴다)
+            pendingSuggestion = null,
+            liveMap = state.liveMap.copy(passenger = null, passengerAccuracyM = null, passengerUpdatedAtMs = null, pickup = null, pickupLabel = "", pickupNote = null, proposed = null),
             lastBannerMessage = if (manualConfirmed) {
                 "탑승 확인(수동) 완료 · 일회성 공유 링크 즉시 파기됨"
             } else {

@@ -1,5 +1,6 @@
 package io.majung.pleos.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,11 +35,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.qrcode.QRCodeWriter
 import io.majung.pleos.finder.CurbsideCarFinderEngine
 import io.majung.pleos.model.CannotStopOption
 import io.majung.pleos.model.PickupPhase
@@ -201,6 +206,13 @@ fun MajungIviScreen(
             DiagLine(t, "자동 판단", trace.line)
             DiagLine(t, "SDK/중계", sdkCallbackLog)
             DiagLine(t, "공유 링크", session.activeTicket?.shareUrl ?: "세션 시작 시 생성 (최대 20분, 탑승 확인 즉시 파기)")
+            session.activeTicket?.shareUrl?.let { url ->
+                // 시연·심사: 동승자 폰으로 QR을 찍으면 같은 링크가 열린다 (폰이 닿는 중계 서버 주소를 설정에 넣어 둘 것)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                    QrImage(url, 280)
+                    Text("동승자 폰으로 이 QR을 찍으면 같은 링크가 열립니다. 폰에서 닿는 중계 서버 주소(공개 HTTPS 또는 같은 Wi-Fi의 PC 주소)를 설정에 넣어 두세요.", color = t.muted, fontSize = 24.sp, modifier = Modifier.widthIn(max = 900.dp))
+                }
+            }
             DiagLine(t, "차량 신호", "기어 ${signals.gear.name}, ${signals.speedKmh.toInt()} km/h (${signals.speedSource.name.lowercase()}), 방향지시등 ${signals.turnSignal.name}, 하향등 ${if (signals.lowBeamOn) "ON" else "OFF"}, 와이퍼 ${if (signals.wiperOn) "ON" else "OFF"}")
             DiagLine(t, "탑승 좌석", "문 ${if (signals.isDoorOpen(target)) "열림" else "닫힘"}, 착좌 ${if (signals.isSeated(target)) "감지" else "없음"}, 벨트 ${if (signals.isBuckled(target)) "체결" else "미체결"}, 차도 쪽 문 ${if (trafficDoorOpen) "열림" else "닫힘"}")
             DiagLine(t, "지도", "차 ${live.car?.let { "%.5f, %.5f".format(it.lat, it.lng) } ?: "없음"}, 동승자 ${live.passenger?.let { "%.5f, %.5f (±${live.passengerAccuracyM?.toInt() ?: 0} m)".format(it.lat, it.lng) } ?: "없음"}, 승차 지점 ${live.pickupLabel.ifBlank { "없음" }} v${live.pickupVersion}")
@@ -433,6 +445,20 @@ private fun PlateField(t: MajungPalette, value: String, onChange: (String) -> Un
             cursorColor = t.accent, focusedContainerColor = t.paper3, unfocusedContainerColor = t.paper3
         )
     )
+}
+
+/** 공유 링크 QR. 흰 바탕 위 먹색 모듈, 여백 1모듈. 링크가 바뀔 때만 다시 만든다. */
+@Composable
+private fun QrImage(text: String, sizeDp: Int) {
+    val bitmap = remember(text) { qrBitmap(text, 512) }
+    Image(bitmap = bitmap.asImageBitmap(), contentDescription = "동승자 링크 QR", modifier = Modifier.size(sizeDp.dp).background(Color.White, RoundedCornerShape(12.dp)).padding(8.dp))
+}
+
+private fun qrBitmap(text: String, px: Int): android.graphics.Bitmap {
+    val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, px, px, mapOf(EncodeHintType.MARGIN to 1))
+    val dark = 0xFF111417.toInt(); val light = 0xFFFFFFFF.toInt()
+    val pixels = IntArray(px * px) { i -> if (matrix.get(i % px, i / px)) dark else light }
+    return android.graphics.Bitmap.createBitmap(pixels, px, px, android.graphics.Bitmap.Config.ARGB_8888)
 }
 
 @Composable

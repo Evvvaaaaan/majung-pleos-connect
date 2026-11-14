@@ -87,6 +87,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.sse)
     implementation(libs.osmdroid.android)
+    implementation(libs.zxing.core)   // 진단 창의 동승자 링크 QR (시연·심사 때 폰으로 바로 열기)
 
     // 공식 가이드 기준 Pleos Connect SDK 의존성 (pleos flavor 전용)
     // - implementation("ai.pleos.playground:Vehicle:2.3.2")

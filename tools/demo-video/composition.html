@@ -48,8 +48,9 @@
   .caption .t { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; }
   .caption .t small { display: block; font-size: 20px; color: var(--muted); font-weight: 500; margin-top: 4px; }
   .signal { position: absolute; left: 56px; top: 94px; display: flex; gap: 10px; }
-  .signal span { font-family: "SF Mono", Menlo, monospace; font-size: 15px; color: #7FB7D9; background: rgba(11,15,20,.85); border: 1px solid #2A333F; padding: 6px 12px; border-radius: 999px; opacity: 0; }
-  .signal span.on { opacity: 1; }
+  /* 켜진 라벨만 자리를 차지한다 (꺼진 라벨이 폭을 차지하면 뒤쪽 라벨이 IVI 박스 밖으로 밀려난다) */
+  .signal span { display: none; font-family: "SF Mono", Menlo, monospace; font-size: 15px; color: #7FB7D9; background: rgba(11,15,20,.85); border: 1px solid #2A333F; padding: 6px 12px; border-radius: 999px; }
+  .signal span.on { display: inline-block; }
 
   .arch h2 { position: absolute; left: 72px; top: 110px; font-size: 56px; font-weight: 800; letter-spacing: -0.03em; }
   .arch .flow { position: absolute; left: 72px; top: 230px; display: flex; align-items: center; gap: 22px; }
@@ -69,7 +70,7 @@
 </head>
 <body>
 <div id="stage">
-  <div class="brandbar"><b>마중</b><span>MAJUNG</span><span class="pill" id="pill">Pleos Connect 차량용 앱</span></div>
+  <div class="brandbar"><svg width="40" height="40" viewBox="0 0 72 72" aria-hidden="true"><rect width="72" height="72" rx="18" fill="#003984"/><path d="M19 21h34M36 25.5 23.5 51M36 25.5 48.5 51" fill="none" stroke="#FCFDFE" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg><b>마중</b><span>MAJUNG</span><span class="pill" id="pill">Pleos Connect 차량용 앱</span></div>
   <div class="credit" id="credit">현대자동차그룹 차량용 앱 개발 공모전 · 시연 영상</div>
 
   <section class="layer title" id="L-title">
@@ -174,6 +175,11 @@ function applyWebState(i, d, rel) {
   for (const st of d.webStates) { if (st.t <= rel) { if (st.event === "SESSION_SHREDDED") shredded = true; else last = st.data; } }
   if (shredded) { w.__majungShowShredded && w.__majungShowShredded(); return; }
   if (last && w.__majungApplyState) w.__majungApplyState(last);
+  // 자리 고르기 핀(t0~t1) → 보낸 자리(t1~tEnd) → 수락 뒤 제거
+  if (d.pick && w.__majungPickPreview) {
+    const ph = rel < d.pick.t0 ? "off" : rel < d.pick.t1 ? "pin" : rel < d.pick.tEnd ? "proposed" : "off";
+    w.__majungPickPreview(ph, d.pick.lat, d.pick.lng);
+  }
 }
 
 window.__seek = async (ms) => {

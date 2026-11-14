@@ -45,14 +45,17 @@ if (args.pleos) {
     tag: "Pleos Connect v2.1.0 에뮬레이터, pleos 빌드 (SDK 실연동), 런처 오른쪽 앱 영역", pill: "Pleos Connect 전용 에뮬레이터 실녹화",
     credit: "차량 신호: Virtual Console → 실제 Vehicle SDK 콜백. 차량 위치: 에뮬레이터에 주입 수단이 없어 디버그 빌드의 adb 훅으로 넣음",
     webStates: readTl(args.pleosTimeline),
+    // 동승자 웹 재생에서 핀 → 보낸 자리 → (수락 뒤) 제거를 흉내 낼 구간과 좌표 (pleos_flow.sh 의 PROP_LAT/PROP_LNG 와 같아야 한다)
+    pick: { t0: at("pick", at("suggest") - 4000), t1: at("suggest"), tEnd: at("accept"), lat: Number(args.pickLat || 37.498930), lng: Number(args.pickLng || 127.062050) },
     captions: [
       { t: at("start"), n: 1, title: "픽업 시작, 링크 보내기", sub: "NaviHelper.requestRoute로 내비 경로 설정, 동승자에게 일회성 지도 링크" },
       { t: at("car320"), n: 2, title: "지도 하나, 할 일 하나", sub: "동승자 위치와 승차 지점, 내 차. 가는 동안 누를 버튼은 '여기 못 서요'뿐" },
       { t: at("pax"), n: 2, title: "동승자 위치가 차에 보입니다", sub: "동승자 웹이 허용한 동안만 세션 메모리에, 탑승 확인 즉시 삭제" },
       { t: at("cantstop"), n: 3, title: "여기 못 서요", sub: "건너편 (U턴), 앞으로 30 m, 한 바퀴 중 하나" },
       { t: at("option"), n: 3, title: "앞으로 30 m: 승차 지점 이동, 내비 재경로", sub: "동승자 웹에 '운전자: 앞으로 30 m'와 새 승차 지점" },
-      { t: at("suggest"), n: 4, title: "동승자의 간편 제안이 카드로", sub: "'2분만 기다려 주세요' (동승자 웹 원탭)" },
-      { t: at("accept"), n: 4, title: "수락: 동승자 웹에 답이 갑니다", sub: "POST /suggestion-reply → '운전자가 수락했어요'" },
+      { t: at("pick", at("suggest") - 4000), n: 4, title: "동승자가 지도에서 탈 자리를 고릅니다", sub: "지도를 움직여 핀(마중 심볼)을 맞추고 '여기서 탈게요'" },
+      { t: at("suggest"), n: 4, title: "고른 좌표가 차량에 카드로 도착", sub: "POST /suggest {PICKUP_HERE, lat, lng} → '승차 지점에서 29 m'" },
+      { t: at("accept"), n: 4, title: "수락: 승차 지점이 그 자리로, 내비 재경로", sub: "동승자 웹 '운전자가 수락했어요', 현대 엠블럼이 고른 자리로" },
       { t: at("near"), n: 5, title: "접근 감지", sub: "반경 80 m, 감속, 우측 방향지시등 (Vehicle SDK 실제 콜백)" },
       { t: at("stopped", at("stop")), n: 5, title: "P단 정차 확인", sub: "기어 P + 차속 0 일 때만 동승자 웹이 '차가 멈췄어요'로" },
       { t: at("night"), n: 5, title: "하향등 ON → 밤 화면", sub: "Light.registerLowBeam 콜백으로 낮/밤 토큰 전환" },
@@ -66,7 +69,8 @@ if (args.pleos) {
       { t: at("car320") + 100, label: "gear=D · speed=32 km/h [AAOS] · carLat/carLng", hold: 5000 },
       { t: at("pax") + 100, label: "PASSENGER_LOCATION (SSE)", hold: 4000 },
       { t: at("option") + 200, label: "pickupVersion=2 · requestRoute()", hold: 5000 },
-      { t: at("accept") + 200, label: "suggestionReply=ACCEPTED", hold: 4000 },
+      { t: at("suggest") + 200, label: "PASSENGER_SUGGESTION {PICKUP_HERE, lat, lng}", hold: 3500 },
+      { t: at("accept") + 200, label: "suggestionReply=ACCEPTED · pickup → (lat,lng) · requestRoute()", hold: 4500 },
       { t: at("near") + 100, label: "turnSignal=RIGHT · 60 m → approach", hold: 4500 },
       { t: at("stopped", at("stop")) + 100, label: "gear=P · stoppedInPark=true → STEP4", hold: 5000 },
       { t: at("night") + 100, label: "lowBeam=ON → night tokens", hold: 3500 },
@@ -96,7 +100,7 @@ const A = S.demoA; const tpA = args.pleosTaps ? JSON.parse(fs.readFileSync(path.
 const atA = (k) => A.start + (tpA[k] || 0);
 const clips = nar ? [
   ["n1_title.wav", S.title.start + 600], ["n2_three.wav", S.three.start + 500],
-  ...(A ? [["n20_map.wav", atA("car320") + 300], ["n21_cantstop.wav", atA("cantstop") + 300], ["n22_suggest.wav", atA("suggest") + 300],
+  ...(A ? [["n20_map.wav", atA("car320") + 300], ["n21_cantstop.wav", atA("cantstop") + 300], ["n22_suggest.wav", atA(tpA.pick ? "pick" : "suggest") + 300],
            ["n23_stop.wav", atA(tpA.stopped ? "stopped" : "stop") + 300], ["n24_unlock.wav", atA("unlock") + 300], ["n25_board.wav", atA("seated") + 300]] : []),
   ["n26_arch.wav", S.arch.start + 600], ["n10_end.wav", S.end.start + 800]
 ].filter(([f]) => fs.existsSync(path.join(nar, f))) : [];

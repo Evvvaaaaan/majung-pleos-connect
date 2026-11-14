@@ -232,7 +232,7 @@ button { font: inherit; color: inherit; }
     const bumped = ver !== null && lastPickVer !== null && ver > lastPickVer;
     if (ver !== null) lastPickVer = ver;
     // 내가 제안한 자리는 운전자가 승차 지점을 옮기거나(수락) 거절하면 지운다
-    if (proposedM && (bumped || (lastSent && last.suggestionReplyId === lastSent.id && last.suggestionReply === "DECLINED"))) { map.removeLayer(proposedM); proposedM = null; }
+    if (proposedM && (bumped || (lastSent && last.suggestionReplyId === lastSent.id && last.suggestionReply === "DECLINED"))) { map.removeLayer(proposedM); proposedM = null; pts.proposed = null; }
     fit(bumped);
   }
 
@@ -263,11 +263,16 @@ button { font: inherit; color: inherit; }
     sendSuggestion({ kind: "PICKUP_HERE", text: "여기서 탈게요", lat: c.lat, lng: c.lng }).then((ok) => {
       el.pickSend.disabled = false;
       if (!ok) return;
-      if (proposedM) map.removeLayer(proposedM);
-      proposedM = L.marker([c.lat, c.lng], { icon: L.divIcon({ className: "", html: '<div class="mk-proposed">' + SYMBOL + "</div>", iconSize: [28, 28], iconAnchor: [14, 14] }), interactive: false }).addTo(map);
+      placeProposed(c.lat, c.lng);
       exitPick();
     });
   });
+  /** 보낸 자리 마커(운전자 답을 기다리는 동안). 이미 있으면 옮긴다. */
+  function placeProposed(lat, lng) {
+    if (proposedM) map.removeLayer(proposedM);
+    proposedM = L.marker([lat, lng], { icon: L.divIcon({ className: "", html: '<div class="mk-proposed">' + SYMBOL + "</div>", iconSize: [28, 28], iconAnchor: [14, 14] }), interactive: false }).addTo(map);
+    pts.proposed = { lat, lng };   // 보낸 자리도 화면 맞춤에 넣는다
+  }
   function setSelf(lat, lng, acc) {
     pts.me = { lat, lng };
     selfFix = { lat, lng };
@@ -405,6 +410,22 @@ button { font: inherit; color: inherit; }
   window.__majungApplyState = applyState;
   window.__majungShowShredded = showShredded;
   window.__majungSetSelf = (lat, lng, acc) => { if (num(lat) && num(lng) && !shredded) setSelf(lat, lng, acc); };
+  // 시연 영상 합성(tools/demo-video/composition.html)용: 자리 고르기 핀과 보낸 자리를 재생 시각에 맞춰 흉내 낸다. phase: "pin" | "proposed" | "off"
+  let previewPhase = "off";
+  window.__majungPickPreview = (phase, lat, lng) => {
+    if (!map) return;
+    if (phase === "pin") {
+      if (previewPhase !== "pin") { enterPick(); map.setView([lat, lng], 18, { animate: false }); }
+    } else if (phase === "proposed") {
+      if (previewPhase !== "proposed") { if (picking) exitPick(); placeProposed(lat, lng); }
+      const sg = last.passengerSuggestion;
+      if (sg && sg.kind === "PICKUP_HERE" && (!lastSent || lastSent.id !== sg.id)) { lastSent = { kind: "PICKUP_HERE", id: sg.id }; lockUntil = 0; renderChips(); }
+    } else if (previewPhase !== "off") {
+      if (picking) exitPick();
+      if (proposedM) { map.removeLayer(proposedM); proposedM = null; pts.proposed = null; }
+    }
+    previewPhase = phase;
+  };
 
   applyState({});
   el.live.textContent = "연결 끊김"; el.live.classList.remove("on");

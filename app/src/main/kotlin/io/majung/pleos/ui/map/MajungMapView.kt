@@ -53,6 +53,10 @@ private const val EMBLEM_PATH = "m 56.707,29.416 c 0.714,3.69 -1.22,6.755 -2.827
 private const val EMBLEM_W = 93.78f
 private const val EMBLEM_H = 47.77f
 
+/** 마중 심볼 '파란 판에 새긴 ㅈ' (docs/brand/majung-symbol.svg): 72 그리드, 획 9. 동승자가 고른 자리(수락 전)에 그린다. */
+private const val SYMBOL_PATH = "M19 21h34M36 25.5 23.5 51M36 25.5 48.5 51"
+private const val SYMBOL_W = 72f
+
 /** OSM 표준 타일(키 불필요). 밤에는 타일에 색 행렬(채도 낮춤 + 반전)을 씌워 어두운 지도로 만든다. */
 private val OSM_TILES = XYTileSource(
     "OpenStreetMap", 0, 19, 256, ".png",
@@ -146,7 +150,7 @@ private class FitTracker {
     private val engine = CurbsideCarFinderEngine()
 
     fun fitIfNeeded(map: MapView, state: LiveMapState) {
-        val points = listOfNotNull(state.car, state.passenger, state.pickup)
+        val points = listOfNotNull(state.car, state.passenger, state.pickup, state.proposed)
         if (points.isEmpty()) return
         val changed = points.size != lastPoints.size ||
             points.zip(lastPoints).any { (a, b) -> engine.distanceMeters(a.lat, a.lng, b.lat, b.lng) > 5 }
@@ -178,6 +182,7 @@ private class MajungOverlay(private val density: Float) : Overlay() {
     private val chevron = Path()
     // 원본 SVG 의 fill-rule=evenodd: 타원 안의 네 조각이 H 와 테두리 사이의 빈 곳(구멍)이다.
     private val emblem: Path by lazy { PathParser().parsePathString(EMBLEM_PATH).toPath().asAndroidPath().apply { fillType = Path.FillType.EVEN_ODD } }
+    private val symbol: Path by lazy { PathParser().parsePathString(SYMBOL_PATH).toPath().asAndroidPath() }
     private val tmp = Point()
 
     private fun dp(v: Float) = v * density
@@ -189,10 +194,12 @@ private class MajungOverlay(private val density: Float) : Overlay() {
         val car = state.car?.let { px(proj, it) }
         val passenger = state.passenger?.let { px(proj, it) }
         val pickup = state.pickup?.let { px(proj, it) }
+        val proposed = state.proposed?.let { px(proj, it) }
 
         if (passenger != null) drawAccuracyCircle(canvas, proj, passenger, pal)
         if (car != null && pickup != null) drawRoute(canvas, car, pickup, pal)
         if (pickup != null) drawPickup(canvas, pickup, pal)
+        if (proposed != null) drawProposed(canvas, proposed, pal)
         if (passenger != null) drawPassenger(canvas, passenger, pal)
         if (car != null) drawCar(canvas, car, state.carHeadingDeg ?: 0.0, pal)
     }
@@ -236,6 +243,22 @@ private class MajungOverlay(private val density: Float) : Overlay() {
         fill.color = pal.pickupInk
         canvas.drawPath(emblem, fill)
         canvas.restore()
+    }
+
+    /** 동승자가 고른 자리(수락 전): 마중 심볼 48 dp — 현대 블루 판 위 흰 ㅈ. 승차 지점(현대 엠블럼)과 구분된다. */
+    private fun drawProposed(canvas: Canvas, c: FloatArray, pal: MapPalette) {
+        val half = dp(24f)
+        val corner = dp(12f)
+        fill.color = pal.pickupInk
+        canvas.drawRoundRect(c[0] - half, c[1] - half, c[0] + half, c[1] + half, corner, corner, fill)
+        val s = (half * 2f) / SYMBOL_W
+        stroke.color = pal.pickup; stroke.strokeWidth = 9f * s; stroke.strokeCap = Paint.Cap.ROUND; stroke.strokeJoin = Paint.Join.ROUND
+        canvas.save()
+        canvas.translate(c[0] - half, c[1] - half)
+        canvas.scale(s, s)
+        canvas.drawPath(symbol, stroke)
+        canvas.restore()
+        stroke.strokeCap = Paint.Cap.BUTT; stroke.strokeJoin = Paint.Join.MITER
     }
 
     private fun drawPassenger(canvas: Canvas, c: FloatArray, pal: MapPalette) {
