@@ -351,7 +351,7 @@ def fill(official: Path, out: Path, ivi_png: Path | None, web_png: Path | None, 
             return p
         team_filled += 1
         p = re.sub(r'_{5,}', TEAM_NAME, p, count=1)
-        return re.sub(r'_{2,}', '', p)
+        return re.sub(r'(<w:t[^>]*>)([^<]*?)(</w:t>)', lambda r: r.group(1) + r.group(2).replace('_', '') + r.group(3), p)  # run이 쪼개져 남은 밑줄까지 제거
     xml = re.sub(r'<w:p\b(?:(?!<w:p\b).)*?</w:p>', fill_team_name, xml, flags=re.S)
     print(f'team-name fields filled={team_filled}')
 
