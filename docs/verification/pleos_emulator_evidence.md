@@ -83,7 +83,7 @@ MajungFlow: 수동 탑승 확인 → 창문·조명·공조 원복 · 세션 즉
 
 런처 아이콘(v3.2): 심볼 '파란 판에 새긴 ㅈ'을 adaptive icon(`mipmap-anydpi-v26/ic_launcher.xml`, 배경 현대 블루 + 전경 흰 ㅈ 벡터)으로 넣었다. Pleos 런처 앱 목록에서 둥근 네모 마스크로 표시된다 (`docs/screenshots/pleos_launcher_icon.png`; `aapt2 dump badging` 에 `application-icon-*: res/mipmap-anydpi-v26/ic_launcher.xml`).
 
-승차 지점 마커(v3.2): 차량 화면과 동승자 웹 모두 흰 판 위 현대 엠블럼으로 그린다(`ui/map/MajungMapView.kt`의 `drawPickup`, 웹의 `.mk-pick`). 엠블럼 경로는 원본 SVG의 evenodd 채우기 규칙을 그대로 써야 H 가 비어 보인다 — nonzero 로 그리면 타원이 통째로 채워진다(에뮬레이터·Chrome 양쪽에서 확인 후 수정). 스크린샷: `docs/screenshots/pleos_emulator_v3_approach.png`, `pleos_emulator_v3_suggestion.png`, `passenger_web_v3.png`.
+승차 지점 마커(v3.2): 차량 화면과 동승자 웹 모두 흰 판 위 현대 엠블럼으로 그린다(`ui/map/MajungMapView.kt`의 `drawPickup`, 웹의 `.mk-pick`). 동승자 웹에서 자리를 고르는 핀과 보낸 자리(운전자 답 대기)는 마중 심볼로 그려 차가 서는 자리와 구분한다. 엠블럼 경로는 원본 SVG의 evenodd 채우기 규칙을 그대로 써야 H 가 비어 보인다 — nonzero 로 그리면 타원이 통째로 채워진다(에뮬레이터·Chrome 양쪽에서 확인 후 수정). 스크린샷: `docs/screenshots/pleos_emulator_v3_approach.png`, `pleos_emulator_v3_suggestion.png`, `passenger_web_v3.png`.
 
 접근 제어(v3.1): 중계 서버는 차량 키(`X-Majung-Car-Key`)와 동승자 토큰(`?t=`)을 세션 생성 시 받아 두고, 키 없는 차량 쪽 호출과 토큰 없는 동승자 쪽 호출을 403으로 거부한다. `node relay-server/verify_e2e_sse.mjs`가 허용·거부 경로를 모두 검증한다.
 
