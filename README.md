@@ -1,3 +1,5 @@
+<img src="docs/brand/majung-symbol.svg" alt="마중 심볼: 파란 판에 새긴 ㅈ" width="64" height="64">
+
 # 마중 (MAJUNG) — 폰은 모르고 차만 아는 3가지로 끝내는 안심 픽업
 
 > 블라인드 심사 준수: 이 저장소에는 참가자의 성명·소속·연락처가 없습니다.
@@ -123,6 +125,7 @@ JDK 17 · Android SDK API 34 · Gradle 8.10.2(wrapper 포함) · minSdk 28 / tar
 ## 5. 디자인
 
 - **근거**: Pleos Connect v2.1.0 런처를 에뮬레이터에서 캡처해 호스트의 결(낮: 밝은 회색 바탕, 검은 검색판, 흰 판에 얇은 선, 작은 라운드, 시스템 한글 서체)을 뽑고, 현대 공식 사이트 CSS에서 브랜드 블루(#002C5F)의 색상각(258)을 파란 신호에 썼습니다. 세 방향(사인보드 / 계기판 / 반투명 플라스틱)을 Hallmark 디자인 스킬로 시안화해 비교한 뒤 **사인보드 방향을 Pleos 결로 다듬어** 채택했습니다.
+- **심볼**: '파란 판에 새긴 ㅈ' — ㅁㅈ 모노그램(판이 ㅁ, 글자가 ㅈ)이자 차량 마커 쉐브론과 같은 ㅅ. 현대 블루 판 위 흰 ㅈ, 획 9/72. 런처 adaptive icon(`app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml`), 동승자 웹 파비콘·헤더, 이 문서 상단에 같은 벡터를 쓴다. 원본: `docs/brand/majung-symbol.svg`
 - **차량 화면**: 지도 전면, 상태 판 하나(검은 판, 64sp 헤드라인, 124sp 거리 숫자), 연결 칩 하나, 아래 버튼 한 줄. 라운드 12dp·선 2dp·그림자 없음. 코발트는 '지금 살아 있는 것'(내 차 마커, 연결 점)에만, 승차 지점은 흰 판 위 현대 엠블럼. 하향등 ON 또는 시스템 야간 모드면 밤 토큰(검은 판 → 흰 판, 지도 색 행렬 필터). 토큰: `ui/MajungTheme.kt`, 화면: `ui/MajungIviScreen.kt`
 - **동승자 웹**: 같은 토큰의 낮 모드. Pretendard, 라운드 12/10/8px, 얇은 선. 지도(Leaflet + OSM) 위에 파란 원의 내 차, 먹색 점의 나, 현대 엠블럼의 승차 지점(지도에서 자리를 고르는 핀도 같은 엠블럼). 번호판 끝 4자리는 흰 번호판 스타일. 상태 블록은 오직 차량 신호로만 바뀐다. `web-companion/index.html`
 - 승차 지점 마커의 현대 엠블럼은 현대자동차의 등록상표입니다(벡터 출처: Wikimedia Commons `Hyundai Motor Company logo.svg`, 공개 도메인·상표 보호). 이 공모전 출품작의 시연 범위에서만 쓰며, 전용 서체는 사용하지 않았습니다. 지도 타일: © OpenStreetMap contributors.

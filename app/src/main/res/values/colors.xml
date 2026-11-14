@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 런처 아이콘 판: 현대 블루 (승차 지점 마커의 엠블럼과 같은 색) -->
+    <color name="ic_launcher_background">#003984</color>
+</resources>

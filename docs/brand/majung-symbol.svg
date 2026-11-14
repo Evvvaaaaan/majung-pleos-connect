@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72" role="img" aria-label="마중 심볼">
+  <!-- 마중 심볼 '파란 판에 새긴 ㅈ' (ㅁㅈ 모노그램: 판이 ㅁ, 글자가 ㅈ). 판 현대 블루 #003984, 글자 흰색, 획 9, 라운드 18/72. -->
+  <rect width="72" height="72" rx="18" fill="#003984"/>
+  <path d="M19 21h34M36 25.5 23.5 51M36 25.5 48.5 51" fill="none" stroke="#FCFDFE" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

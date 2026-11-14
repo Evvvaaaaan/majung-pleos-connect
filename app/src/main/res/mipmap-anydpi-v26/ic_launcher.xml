@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 마중 심볼 '파란 판에 새긴 ㅈ'. 판(배경)은 현대 블루, 글자(전경)는 흰 ㅈ. 런처가 판의 모양(둥근 네모·원)을 정한다. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
