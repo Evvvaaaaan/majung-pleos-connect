@@ -329,7 +329,8 @@ button { font: inherit; color: inherit; }
   applyState({});
   el.live.textContent = "연결 끊김"; el.live.classList.remove("on");
   const dLat = parseFloat(qs.get("demoLat")), dLng = parseFloat(qs.get("demoLng"));
-  if (isFinite(dLat) && isFinite(dLng)) window.__majungSetSelf(dLat, dLng, 12); else startGeo();
+  // demoLat/demoLng: a browser without a position fix (demo, capture) behaves like one fix at that spot, so the car sees it too
+  if (isFinite(dLat) && isFinite(dLng)) onPos({ coords: { latitude: dLat, longitude: dLng, accuracy: 12 } }); else startGeo();
 
   try {
     const es = new EventSource(api + "/events");
