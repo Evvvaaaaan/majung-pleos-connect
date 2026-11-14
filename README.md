@@ -46,6 +46,7 @@
 - 운전 부하 지수(조향 각속도·브레이크·와이퍼·속도·NaviHelper TBT 다음 회전 거리) ≥ 0.45 이면 일반 안내 보류, 1.5초 안정 후 재생
 - 원격 도어 **개방**은 하지 않음. 잠금 해제만, P단 + 운전자 확인 후에만.
 - 위치는 **서로 보기 위해서만**: 동승자 위치는 동승자 웹에서 브라우저 권한을 허용한 경우에만 세션 동안 중계 서버 메모리에 머물고(`passengerLocationOptIn`), 차량 위치·승차 지점과 함께 탑승 확인 즉시(`DELETE`) 또는 20분 뒤 삭제됩니다. 디스크·로그에 남기지 않습니다.
+- **중계 서버 접근 제어**: 세션 id만으로는 아무것도 읽거나 쓸 수 없습니다. 차량은 세션을 만들 때 자기만 아는 키를 헤더(`X-Majung-Car-Key`)로 등록하고 이후 상태 갱신·제안 응답·파기에 그 키가 필요합니다. 동승자는 공유 링크의 일회성 토큰(`?t=`) 없이는 상태 조회·실시간 스트림·위치 전송·제안을 할 수 없습니다. 키와 토큰은 상태에 섞이지 않아 스트림에 실리지 않으며, 불일치는 403으로 거부됩니다(`relay-server/verify_e2e_sse.mjs`가 거부 경로까지 검증).
 
 ---
 
@@ -105,7 +106,7 @@ PORT=8080 node relay-server/server.mjs
 - Virtual Console(`adb forward tcp:8088 tcp:8088` → 127.0.0.1:8088)로 기어·차속·도어·착좌·하향등·와이퍼·방향지시등을 주입하면 화면과 동승자 웹이 즉시 반응(하향등 ON → 밤 화면). 차량 신호·SDK 로그는 오른쪽 위 연결 칩을 눌러 여는 **진단** 창에서 봅니다. 화면이 꺼지면 Virtual Console에서 Power System 상태를 `On`으로 두세요.
 - 앱은 Pleos 런처의 오른쪽 앱 영역(1707×1210)에 임베드되어 실행됩니다. 화면은 2560dp 폭 기준으로 그리고 영역 폭에 비례해 축소합니다(`MainActivity.kt`).
 - **차량 위치 주입(디버그 빌드 전용):** Pleos 에뮬레이터에는 FusedLocation 주입 수단이 없어, `app-pleos-debug.apk`에서만 `adb shell am broadcast --user 10 -a io.majung.pleos.DEBUG_LOCATION -p io.majung.pleos --ef lat 37.4988 --ef lng 127.0580 --ef heading 90` 으로 좌표를 넣을 수 있습니다(release APK에는 없음). 실차·실 에뮬레이터 위치가 들어오면 같은 허브로 합쳐져 그대로 우선합니다. 시연 영상의 차량 이동은 이 방식입니다. 전체 시연 절차: `tools/demo-video/pleos_flow.sh`
-- 동승자 위치·간편 제안은 동승자 웹(브라우저)에서 보내거나, 시연에서는 `curl -X POST http://127.0.0.1:8080/api/v1/sessions/<id>/passenger-location -d '{"lat":…,"lng":…,"accuracyM":12}'` 와 `/suggest` 로 넣습니다.
+- 동승자 위치·간편 제안은 동승자 웹(브라우저)에서 보내거나, 시연에서는 `curl -X POST "http://127.0.0.1:8080/api/v1/sessions/<id>/passenger-location?t=<토큰>" -d '{"lat":…,"lng":…,"accuracyM":12}'` 와 `/suggest?t=<토큰>` 로 넣습니다. 세션 id와 동승자 토큰은 같은 PC에서만 응답하는 `GET http://127.0.0.1:8080/api/v1/sessions/_latest` 로 얻습니다(공유 링크 `/m/<id>?t=<토큰>`과 같은 값).
 - 확인된 것: SDK `register*` 16건 등록, 콜백 수신(기어·차속·브레이크·조향·방향지시등·하향등·와이퍼·도어·착좌), 제어 `onComplete`(도어 잠금 해제·창문·독서등), NaviHelper 경로 요청·재경로·TBT 수신, 능력 조회, OSM 지도 타일 로드, 동승자 위치/제안 SSE 수신, '여기 못 서요' 3안, 낮/밤 전환. 제약(벨트 신호·위치 주입 불가, TTS 엔진 미탑재, 착좌 값 반전, 경로 요청 시 내비 앱 전면 전환)은 `docs/verification/pleos_emulator_evidence.md`.
 - SDK: Vehicle 2.3.2 · NaviHelper 3.0.5 · FusedLocation 1.1.3 · TextToSpeech 3.3.1 (`nexus-playground.pleos.ai` 실제 배포 버전)
 

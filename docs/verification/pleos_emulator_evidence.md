@@ -80,6 +80,8 @@ MajungFlow: 착좌 감지 → 환대 인사: 지수님, 반갑습니다.
 MajungFlow: 수동 탑승 확인 → 창문·조명·공조 원복 · 세션 즉시 파기          → 중계 SESSION_SHREDDED
 ```
 
+접근 제어(v3.1): 중계 서버는 차량 키(`X-Majung-Car-Key`)와 동승자 토큰(`?t=`)을 세션 생성 시 받아 두고, 키 없는 차량 쪽 호출과 토큰 없는 동승자 쪽 호출을 403으로 거부한다. `node relay-server/verify_e2e_sse.mjs`가 허용·거부 경로를 모두 검증한다.
+
 추가로 확인한 제약:
 - `NaviHelper.requestRoute`(세션 시작·재경로)마다 호스트 내비 앱이 전면으로 온다. 시연 절차는 호출 뒤 `am start`로 마중 화면을 다시 앞으로 가져온다.
 - Virtual Console의 차속은 0을 넣어도 서서히 줄어 `stoppedInPark`까지 7~14초가 걸린다. 시연 절차는 중계 상태의 `stoppedInPark`를 기다린다.

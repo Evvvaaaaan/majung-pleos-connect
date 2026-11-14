@@ -9,6 +9,10 @@
  *    그 외 임의의 좌표 필드(latitude, longitude, passengerCoordinates 등)는 sanitize에서 여전히 버린다.
  * 2) 탑승 확인 완료 또는 운전자 수동 종료(DELETE /api/v1/sessions/:id) 시 메모리에서 즉시 파기 및 SSE SESSION_SHREDDED 송출
  * 3) 종료 누락 방치 시에도 발급 시점 기준 최대 20분(1,200,000ms) 경과 시 자동 만료 파기
+ * 4) 접근 제어(v3.1): 세션 id만으로는 아무것도 읽거나 쓸 수 없다.
+ *    - 차량: 세션을 만든 첫 PUT 의 헤더 `X-Majung-Car-Key`(차량이 세션마다 만드는 비밀)가 이후 PUT·DELETE·suggestion-reply·events 에 필요
+ *    - 동승자: 첫 PUT 본문의 `passengerToken`(공유 링크의 ?t=)이 상태 조회·events·ready·swap-landmark·passenger-location·suggest 에 필요
+ *    키와 토큰은 상태(state)에 섞이지 않아 SSE·조회 응답에 실리지 않는다. 불일치는 403.
  */
 import http from "node:http";
 import fs from "node:fs";
@@ -31,6 +35,19 @@ function sendJson(res, status, obj) {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(obj));
 }
+
+// ---- 접근 제어 -------------------------------------------------------------------------------------
+const CRED_MIN = 8, CRED_MAX = 128;
+const validCred = (v) => typeof v === "string" && v.length >= CRED_MIN && v.length <= CRED_MAX && /^[A-Za-z0-9._~-]+$/.test(v);
+function sameSecret(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+const carKeyOf = (req) => (typeof req.headers["x-majung-car-key"] === "string" ? req.headers["x-majung-car-key"] : "");
+const passengerTokenOf = (req, url) => url.searchParams.get("t") || (typeof req.headers["x-majung-token"] === "string" ? req.headers["x-majung-token"] : "");
+const isCar = (req, entry) => sameSecret(carKeyOf(req), entry.carKey);
+const isPassenger = (req, url, entry) => sameSecret(passengerTokenOf(req, url), entry.passengerToken);
+const forbidden = (res) => sendJson(res, 403, { error: "FORBIDDEN" });
 
 function broadcast(entry, event, data) {
   const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -81,22 +98,29 @@ function shredSession(sessionId, reason = "IMMEDIATE_END") {
   return true;
 }
 
-function upsertSession(sessionId, payload) {
-  let entry = ephemeralSessions.get(sessionId);
+/** 세션 생성(첫 PUT): 차량 키와 동승자 토큰을 함께 받아 상태 밖에 보관한다. 둘 중 하나라도 없으면 만들지 않는다. */
+function createSession(sessionId, carKey, passengerToken) {
   const now = Date.now();
-  if (!entry) {
-    entry = {
-      state: {
-        sessionId,
-        createdAtEpochMs: now,
-        maxExpiresAtEpochMs: now + MAX_SESSION_TTL_MS,
-        passengerLocationOptIn: true,
-      },
-      subscribers: new Set(),
-      timer: setTimeout(() => shredSession(sessionId, "TTL_20MIN_EXPIRED"), MAX_SESSION_TTL_MS),
-    };
-    ephemeralSessions.set(sessionId, entry);
-  }
+  const entry = {
+    carKey,
+    passengerToken,
+    state: {
+      sessionId,
+      createdAtEpochMs: now,
+      maxExpiresAtEpochMs: now + MAX_SESSION_TTL_MS,
+      passengerLocationOptIn: true,
+    },
+    subscribers: new Set(),
+    timer: setTimeout(() => shredSession(sessionId, "TTL_20MIN_EXPIRED"), MAX_SESSION_TTL_MS),
+  };
+  ephemeralSessions.set(sessionId, entry);
+  return entry;
+}
+
+function upsertSession(sessionId, payload) {
+  const entry = ephemeralSessions.get(sessionId);
+  const now = Date.now();
+  if (!entry) throw new Error("NO_SESSION");
   const clean = sanitizeIncomingPayload(payload);
   entry.state = {
     ...entry.state,
@@ -135,7 +159,7 @@ export function createMajungRelayServer() {
   return http.createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Majung-Car-Key, X-Majung-Token");
 
     if (req.method === "OPTIONS") {
       res.writeHead(204);
@@ -159,7 +183,7 @@ export function createMajungRelayServer() {
       return;
     }
 
-    // 0) 로컬 시연·테스트 보조: 가장 최근 세션 id (루프백 요청에서만 응답, 토큰은 노출하지 않음)
+    // 0) 로컬 시연·테스트 보조: 가장 최근 세션 id와 동승자 토큰 (같은 PC의 루프백 요청에서만 응답한다 — 시연·검증 도구용)
     if (req.method === "GET" && url.pathname === "/api/v1/sessions/_latest") {
       const remote = req.socket.remoteAddress || "";
       const isLoopback = remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1";
@@ -170,7 +194,7 @@ export function createMajungRelayServer() {
         return;
       }
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify({ sessionId: latest }));
+      res.end(JSON.stringify({ sessionId: latest, passengerToken: ephemeralSessions.get(latest).passengerToken }));
       return;
     }
 
@@ -194,6 +218,7 @@ export function createMajungRelayServer() {
         res.end(JSON.stringify({ error: "SESSION_NOT_FOUND_OR_SHREDDED", sessionId }));
         return;
       }
+      if (!isCar(req, entry) && !isPassenger(req, url, entry)) return forbidden(res);
 
       res.writeHead(200, {
         "Content-Type": "text/event-stream; charset=utf-8",
@@ -218,25 +243,32 @@ export function createMajungRelayServer() {
           res.end(JSON.stringify({ error: "SESSION_NOT_FOUND_OR_SHREDDED", sessionId }));
           return;
         }
+        if (!isCar(req, entry) && !isPassenger(req, url, entry)) return forbidden(res);
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
         res.end(JSON.stringify(entry.state));
         return;
       }
 
       if (req.method === "PUT") {
-        try {
-          const payload = await readJsonBody(req);
-          const updated = upsertSession(sessionId, payload);
-          res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-          res.end(JSON.stringify({ ok: true, state: updated }));
-        } catch {
-          res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-          res.end(JSON.stringify({ error: "INVALID_JSON" }));
+        let payload;
+        try { payload = await readJsonBody(req); } catch { return sendJson(res, 400, { error: "INVALID_JSON" }); }
+        const existing = ephemeralSessions.get(sessionId);
+        if (existing) {
+          if (!isCar(req, existing)) return forbidden(res);
+        } else {
+          // 세션 생성은 차량만 한다: 차량 키(헤더)와 동승자 토큰(본문)이 모두 있어야 한다.
+          const carKey = carKeyOf(req);
+          const passengerToken = payload && payload.passengerToken;
+          if (!validCred(carKey) || !validCred(passengerToken)) return sendJson(res, 400, { error: "AUTH_REQUIRED" });
+          createSession(sessionId, carKey, passengerToken);
         }
-        return;
+        const updated = upsertSession(sessionId, payload);
+        return sendJson(res, 200, { ok: true, state: updated });
       }
 
       if (req.method === "DELETE") {
+        const entry = ephemeralSessions.get(sessionId);
+        if (entry && !isCar(req, entry)) return forbidden(res);
         const existed = shredSession(sessionId, "BOARDING_CONFIRMED_OR_MANUAL_END");
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ shredded: true, existed, sessionId }));
@@ -254,6 +286,7 @@ export function createMajungRelayServer() {
         res.end(JSON.stringify({ error: "SESSION_SHREDDED" }));
         return;
       }
+      if (!isPassenger(req, url, entry)) return forbidden(res);
       try {
         const body = await readJsonBody(req);
         const safeNote = String(body.statusText || "기준 간판 앞에서 대기 중입니다.").slice(0, 80);
@@ -274,6 +307,7 @@ export function createMajungRelayServer() {
     if (req.method === "POST" && locMatch) {
       const entry = ephemeralSessions.get(decodeURIComponent(locMatch[1]));
       if (!entry) return sendJson(res, 404, { error: "SESSION_SHREDDED" });
+      if (!isPassenger(req, url, entry)) return forbidden(res);
       try {
         const body = await readJsonBody(req);
         if (!Number.isFinite(body.lat) || !Number.isFinite(body.lng)) return sendJson(res, 400, { error: "INVALID_LOCATION" });
@@ -300,6 +334,7 @@ export function createMajungRelayServer() {
     if (req.method === "POST" && suggestMatch) {
       const entry = ephemeralSessions.get(decodeURIComponent(suggestMatch[1]));
       if (!entry) return sendJson(res, 404, { error: "SESSION_SHREDDED" });
+      if (!isPassenger(req, url, entry)) return forbidden(res);
       try {
         const body = await readJsonBody(req);
         if (!SUGGESTION_KINDS.includes(body.kind)) return sendJson(res, 400, { error: "INVALID_KIND" });
@@ -328,6 +363,7 @@ export function createMajungRelayServer() {
     if (req.method === "POST" && replyMatch) {
       const entry = ephemeralSessions.get(decodeURIComponent(replyMatch[1]));
       if (!entry) return sendJson(res, 404, { error: "SESSION_SHREDDED" });
+      if (!isCar(req, entry)) return forbidden(res);
       try {
         const body = await readJsonBody(req);
         if (typeof body.id !== "string" || typeof body.accepted !== "boolean") return sendJson(res, 400, { error: "INVALID_REPLY" });
@@ -351,6 +387,7 @@ export function createMajungRelayServer() {
         res.end(JSON.stringify({ error: "SESSION_SHREDDED" }));
         return;
       }
+      if (!isPassenger(req, url, entry)) return forbidden(res);
       try {
         const body = await readJsonBody(req);
         const nextLandmark = String(body.landmarkSignboard || "").trim().slice(0, 80);

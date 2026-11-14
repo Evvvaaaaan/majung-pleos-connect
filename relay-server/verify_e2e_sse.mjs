@@ -14,10 +14,10 @@ import { createMajungRelayServer } from "./server.mjs";
 const server = createMajungRelayServer();
 
 /** SSE 구독 헬퍼: 수신한 이벤트를 모으고 조건을 만족하는 이벤트를 기다린다. */
-function subscribe(url) {
+function subscribe(url, headers = {}) {
   const events = [];
   const waiters = [];
-  const req = http.get(url, (res) => {
+  const req = http.get(url, { headers }, (res) => {
     res.setEncoding("utf8");
     let buf = "";
     res.on("data", (chunk) => {
@@ -54,13 +54,24 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const { port } = server.address();
 const base = `http://127.0.0.1:${port}`;
 const sessionId = "mj-e2e-test01";
+const CAR_KEY = "car-key-e2e-0123456789abcdef";   // 차량이 세션마다 만드는 비밀 (헤더)
+const TOKEN = "tok-e2e-0123456789abcdef";         // 동승자 일회성 토큰 (공유 링크의 ?t=)
+const carHeaders = { "Content-Type": "application/json", "X-Majung-Car-Key": CAR_KEY };
+const jsonHeaders = { "Content-Type": "application/json" };
+const withToken = (path) => `${base}/api/v1/sessions/${sessionId}${path}${path.includes("?") ? "&" : "?"}t=${TOKEN}`;
 
 try {
+  // 0) 접근 제어: 키·토큰 없이는 세션을 만들 수 없다
+  const noAuth = await fetch(`${base}/api/v1/sessions/${sessionId}`, { method: "PUT", headers: jsonHeaders, body: JSON.stringify({ passengerName: "지수" }) });
+  assert.equal(noAuth.status, 400);
+  assert.equal((await noAuth.json()).error, "AUTH_REQUIRED");
+
   // 1) 세션 생성 + 의도적으로 원시 GPS 필드를 섞어 보내 필터링되는지 검증
   const putRes = await fetch(`${base}/api/v1/sessions/${sessionId}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: carHeaders,
     body: JSON.stringify({
+      passengerToken: TOKEN,
       passengerName: "지수",
       landmarkSignboard: "파리바게뜨 대치점 노란 간판",
       vehicleModelLabel: "아이오닉 9",
@@ -90,6 +101,17 @@ try {
   assert.equal(putJson.state.passengerLocationOptIn, true);
   assert.equal(putJson.state.collectPassengerGps, undefined);
   assert.equal(putJson.state.passengerLat, undefined);
+  assert.equal(putJson.state.passengerToken, undefined); // 토큰은 상태에 섞이지 않는다 (SSE·조회에 안 실림)
+
+  // 0-1) 만들어진 세션은 차량 키 없이는 고칠 수 없고, 동승자 토큰 없이는 읽을 수 없다
+  assert.equal((await fetch(`${base}/api/v1/sessions/${sessionId}`, { method: "PUT", headers: jsonHeaders, body: "{}" })).status, 403);
+  assert.equal((await fetch(`${base}/api/v1/sessions/${sessionId}`, { method: "PUT", headers: { ...jsonHeaders, "X-Majung-Car-Key": "wrong-key-0123456789" }, body: "{}" })).status, 403);
+  assert.equal((await fetch(`${base}/api/v1/sessions/${sessionId}`)).status, 403);
+  assert.equal((await fetch(`${base}/api/v1/sessions/${sessionId}?t=wrong-token-0123456789`)).status, 403);
+  assert.equal((await fetch(`${base}/api/v1/sessions/${sessionId}/events`)).status, 403);
+  assert.equal((await fetch(`${base}/api/v1/sessions/${sessionId}`, { method: "DELETE" })).status, 403);
+  assert.equal((await fetch(withToken(""))).status, 200);
+  assert.equal((await fetch(`${base}/api/v1/sessions/${sessionId}`, { headers: { "X-Majung-Car-Key": CAR_KEY } })).status, 200);
   // 차량 위치·픽업 지점 필드는 sanitize를 통과한다 (문자열 80자 상한)
   assert.equal(putJson.state.carLat, 37.4988);
   assert.equal(putJson.state.carLng, 127.0614);
@@ -117,7 +139,7 @@ try {
 
   const updateRes = await fetch(`${base}/api/v1/sessions/${sessionId}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: carHeaders,
     body: JSON.stringify({ passengerName: { latitude: 37.12345 }, maxExpiresAtEpochMs: 3 }),
   });
   const updatedJson = await updateRes.json();
@@ -127,7 +149,7 @@ try {
   // 2) SSE 클라이언트 연결 및 실시간 이벤트 수집
   const receivedEvents = [];
   await new Promise((resolve, reject) => {
-    const req = http.get(`${base}/api/v1/sessions/${sessionId}/events`, (res) => {
+    const req = http.get(withToken("/events"), (res) => {
       assert.equal(res.statusCode, 200);
       res.setEncoding("utf8");
       let buf = "";
@@ -155,19 +177,27 @@ try {
   assert.equal(receivedEvents[0].data.plateLast4, "4568");
 
   // 3) 동승자 기준 간판 변경 요청 검증
-  const swapRes = await fetch(`${base}/api/v1/sessions/${sessionId}/swap-landmark`, {
+  assert.equal((await fetch(`${base}/api/v1/sessions/${sessionId}/swap-landmark`, { method: "POST", headers: jsonHeaders, body: JSON.stringify({ landmarkSignboard: "x" }) })).status, 403);
+  const swapRes = await fetch(withToken("/swap-landmark"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: jsonHeaders,
     body: JSON.stringify({ landmarkSignboard: "한빛약국 초록 십자 간판" }),
   });
   assert.equal(swapRes.status, 200);
 
-  // 3-1) 두 번째 구독자(차량 역할)가 동승자 위치·제안을 수신하고, 제안 응답이 STATE_UPDATE에 실린다
-  const car = subscribe(`${base}/api/v1/sessions/${sessionId}/events`);
+  // 3-1) 두 번째 구독자(차량 역할, 차량 키 헤더)가 동승자 위치·제안을 수신하고, 제안 응답이 STATE_UPDATE에 실린다
+  const car = subscribe(`${base}/api/v1/sessions/${sessionId}/events`, { "X-Majung-Car-Key": CAR_KEY });
   await car.waitFor((e) => e.event === "STATE_UPDATE");
-  const post = (suffix, body) => fetch(`${base}/api/v1/sessions/${sessionId}/${suffix}`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  const post = (suffix, body) => fetch(withToken(`/${suffix}`), {
+    method: "POST", headers: jsonHeaders, body: JSON.stringify(body),
   });
+  const postAsCar = (suffix, body) => fetch(`${base}/api/v1/sessions/${sessionId}/${suffix}`, {
+    method: "POST", headers: carHeaders, body: JSON.stringify(body),
+  });
+
+  // 동승자 토큰 없이 보낸 위치·제안은 거부된다
+  assert.equal((await fetch(`${base}/api/v1/sessions/${sessionId}/passenger-location`, { method: "POST", headers: jsonHeaders, body: JSON.stringify({ lat: 1, lng: 2 }) })).status, 403);
+  assert.equal((await fetch(`${base}/api/v1/sessions/${sessionId}/suggest`, { method: "POST", headers: jsonHeaders, body: JSON.stringify({ kind: "READY", text: "x" }) })).status, 403);
 
   const locRes = await post("passenger-location", { lat: 37.49885, lng: 127.06150, accuracyM: 12 });
   assert.equal(locRes.status, 200);
@@ -176,13 +206,14 @@ try {
   assert.equal(locEvt.data.lng, 127.0615);
   assert.equal(locEvt.data.accuracyM, 12);
   assert.equal(typeof locEvt.data.updatedAtEpochMs, "number");
-  const stateAfterLoc = await (await fetch(`${base}/api/v1/sessions/${sessionId}`)).json();
+  const stateAfterLoc = await (await fetch(withToken(""))).json();
   assert.equal(stateAfterLoc.passengerLat, 37.49885);
   assert.equal(stateAfterLoc.passengerAccuracyM, 12);
+  assert.equal(stateAfterLoc.passengerToken, undefined);
   // 500ms 이내 재전송은 조용히 버려진다(200, 저장 안 됨)
   const throttled = await post("passenger-location", { lat: 1, lng: 2, accuracyM: 3 });
   assert.equal(throttled.status, 200);
-  const stateAfterThrottle = await (await fetch(`${base}/api/v1/sessions/${sessionId}`)).json();
+  const stateAfterThrottle = await (await fetch(withToken(""))).json();
   assert.equal(stateAfterThrottle.passengerLat, 37.49885);
 
   const sugRes = await post("suggest", { kind: "PICKUP_HERE", text: "저 여기 있어요", lat: 37.49885, lng: 127.0615 });
@@ -194,7 +225,9 @@ try {
   assert.ok(typeof sugEvt.data.id === "string" && sugEvt.data.id.length >= 4);
   assert.equal((await post("suggest", { kind: "BOGUS", text: "x" })).status, 400);
 
-  const replyRes = await post("suggestion-reply", { id: sugEvt.data.id, accepted: true });
+  // 제안 응답은 차량만 할 수 있다 (동승자 토큰으로는 403)
+  assert.equal((await post("suggestion-reply", { id: sugEvt.data.id, accepted: true })).status, 403);
+  const replyRes = await postAsCar("suggestion-reply", { id: sugEvt.data.id, accepted: true });
   assert.equal(replyRes.status, 200);
   const replyState = await car.waitFor((e) => e.event === "STATE_UPDATE" && e.data.suggestionReplyId === sugEvt.data.id);
   assert.equal(replyState.data.suggestionReply, "ACCEPTED");
@@ -208,11 +241,12 @@ try {
     assert.equal(gone.status, 404, suffix);
   }
 
-  // 4) 탑승 완료 시 즉시 DELETE 파기 -> 이후 조회 시 404 검증
-  const delRes = await fetch(`${base}/api/v1/sessions/${sessionId}`, { method: "DELETE" });
+  // 4) 탑승 완료 시 즉시 DELETE 파기(차량 키 필요) -> 이후 조회 시 404 검증
+  assert.equal((await fetch(`${base}/api/v1/sessions/${sessionId}`, { method: "DELETE", headers: { "X-Majung-Token": TOKEN } })).status, 403);
+  const delRes = await fetch(`${base}/api/v1/sessions/${sessionId}`, { method: "DELETE", headers: { "X-Majung-Car-Key": CAR_KEY } });
   assert.equal(delRes.status, 200);
 
-  const afterDelRes = await fetch(`${base}/api/v1/sessions/${sessionId}`);
+  const afterDelRes = await fetch(withToken(""));
   assert.equal(afterDelRes.status, 404);
 
   // 5) 동승자 모바일 웹 HTML 정상 서빙 확인
@@ -221,7 +255,7 @@ try {
   const html = await webRes.text();
   assert.ok(html.includes("번호판"));
 
-  console.log("PASS: MAJUNG Relay E2E SSE + GPS Stripping + car/pickup fields + PASSENGER_LOCATION/SUGGESTION + suggestion-reply + Landmark Swap + Immediate DELETE Shred verified.");
+  console.log("PASS: MAJUNG Relay E2E — access control (car key / passenger token, 403 without) + SSE + GPS Stripping + car/pickup fields + PASSENGER_LOCATION/SUGGESTION + suggestion-reply + Landmark Swap + Immediate DELETE Shred verified.");
 } finally {
   server.close();
 }

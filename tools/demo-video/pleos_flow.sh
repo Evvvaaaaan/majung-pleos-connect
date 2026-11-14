@@ -21,6 +21,7 @@ vc() { curl -s -m 3 -X PUT "$VC/vehicle/$1" >/dev/null; }
 loc() { timeout 10 adb shell am broadcast --user 10 -a io.majung.pleos.DEBUG_LOCATION -p io.majung.pleos --ef lat "$1" --ef lng "$2" --ef heading "${3:-90}" >/dev/null 2>&1; }
 front() { timeout 10 adb shell am start -n io.majung.pleos/.ui.MainActivity >/dev/null 2>&1; }
 sid() { curl -s "$RELAY/api/v1/sessions/_latest" | python3 -c 'import sys,json;print(json.load(sys.stdin)["sessionId"])'; }
+tok() { curl -s "$RELAY/api/v1/sessions/_latest" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("passengerToken",""))'; }   # 동승자 토큰(루프백 전용 응답)
 # 경도 1도 ≈ 88,300 m (위도 37.5°). 승차 지점에서 서쪽으로 m 만큼 떨어진 경도
 west() { python3 -c "print($PICK_LNG - $1/88300.0)"; }
 
@@ -51,20 +52,20 @@ loc 37.4988 "$(west 320)" 90; sleep 1.5
 mark start;      tap 1282 508                              # 픽업 시작, 링크 보내기 → 내비 경로 요청(내비 앱 전면)
 sleep 5;         front; sleep 2; mark back
 vc "gear?gear=Drive"; vc "controls?speed=32"; mark car320
-sleep 3;         curl -s -m 3 -X POST "$RELAY/api/v1/sessions/$(sid)/passenger-location" -H 'Content-Type: application/json' -d "{\"lat\":$PAX_LAT,\"lng\":$PAX_LNG,\"accuracyM\":12}" >/dev/null; mark pax
+sleep 3;         curl -s -m 3 -X POST "$RELAY/api/v1/sessions/$(sid)/passenger-location?t=$(tok)" -H 'Content-Type: application/json' -d "{\"lat\":$PAX_LAT,\"lng\":$PAX_LNG,\"accuracyM\":12}" >/dev/null; mark pax
 sleep 4;         loc 37.4988 "$(west 240)" 90
 sleep 3;         mark cantstop; tap 997 1216                # 여기 못 서요
 sleep 3.5;       mark option;   tap 1624 1148               # 앞으로 30 m → 재경로(내비 앱 전면)
 sleep 4;         front; sleep 2; mark back2
 loc 37.4988 "$(west 170)" 90
 sleep 3;         loc 37.4988 "$(west 110)" 90; vc "controls?speed=22"
-sleep 3;         curl -s -m 3 -X POST "$RELAY/api/v1/sessions/$(sid)/suggest" -H 'Content-Type: application/json' -d '{"kind":"WAIT_MINUTES","text":"2분만 기다려 주세요","minutes":2}' >/dev/null; mark suggest
+sleep 3;         curl -s -m 3 -X POST "$RELAY/api/v1/sessions/$(sid)/suggest?t=$(tok)" -H 'Content-Type: application/json' -d '{"kind":"WAIT_MINUTES","text":"2분만 기다려 주세요","minutes":2}' >/dev/null; mark suggest
 sleep 4;         mark accept;   tap 2053 1078               # 수락
 sleep 3;         loc 37.498812 "$(python3 -c "print($PICK_LNG + 30/88300.0 - 60/88300.0)")" 90; vc "turn-signal?mode=BlinkRight"; vc "controls?speed=12"; mark near   # 새 승차 지점(+30 m) 60 m 앞, 우측 방향지시등 → 접근 감지
 sleep 4;         loc 37.498812 "$(python3 -c "print($PICK_LNG + 30/88300.0)")" 90; vc "controls?speed=0&brake=80"; vc "gear?gear=Park"; vc "turn-signal?mode=Off"; mark stop   # 앞으로 30 m 지점에 P단 정차
 # 에뮬레이터의 차속은 서서히 줄어든다 — 기어 P + 차속 0 (stoppedInPark)이 중계 상태에 보일 때까지 기다린다
 for i in $(seq 1 60); do
-  st=$(curl -s -m 2 "$RELAY/api/v1/sessions/$(sid)" | python3 -c 'import sys,json;s=json.load(sys.stdin);print("1" if s.get("stoppedInPark") and s.get("phase")=="STEP4_CURBSIDE_STOPPED" else "0")' 2>/dev/null)
+  st=$(curl -s -m 2 "$RELAY/api/v1/sessions/$(sid)?t=$(tok)" | python3 -c 'import sys,json;s=json.load(sys.stdin);print("1" if s.get("stoppedInPark") and s.get("phase")=="STEP4_CURBSIDE_STOPPED" else "0")' 2>/dev/null)
   [ "$st" = "1" ] && break; sleep 0.5
 done
 mark stopped

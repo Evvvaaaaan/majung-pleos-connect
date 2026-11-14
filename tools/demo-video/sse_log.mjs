@@ -17,9 +17,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // 세션 id는 외부에 노출되지 않으므로 루프백 전용 /api/v1/sessions/_latest 로 조회한다.
 // 시작 시점에 이미 있던 세션(이전 시연)은 건너뛰고, 새로 만들어지는 세션을 기다린다.
 async function latest() {
-  try { const r = await fetch(`${base}/api/v1/sessions/_latest`); if (r.ok) return (await r.json()).sessionId; } catch {}
+  try { const r = await fetch(`${base}/api/v1/sessions/_latest`); if (r.ok) { const j = await r.json(); passengerToken = j.passengerToken || passengerToken; return j.sessionId; } } catch {}
   return null;
 }
+let passengerToken = args.token || "";
 let sessionId = args.session || null;
 const stale = sessionId ? null : await latest();
 while (!sessionId) {
@@ -29,7 +30,7 @@ while (!sessionId) {
 }
 console.error(`subscribing to ${sessionId}`);
 const stream = fs.createWriteStream(out, { flags: "a" });
-const res = await fetch(`${base}/api/v1/sessions/${encodeURIComponent(sessionId)}/events`);
+const res = await fetch(`${base}/api/v1/sessions/${encodeURIComponent(sessionId)}/events?t=${encodeURIComponent(passengerToken)}`);
 const reader = res.body.getReader();
 const dec = new TextDecoder();
 let buf = "";

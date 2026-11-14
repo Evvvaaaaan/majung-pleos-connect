@@ -136,6 +136,9 @@ button { font: inherit; color: inherit; }
   const qs = new URLSearchParams(location.search);
   const sessionId = (parts[0] === "m" && parts[1]) ? parts[1] : (qs.get("s") || "demo-session");
   const api = "/api/v1/sessions/" + encodeURIComponent(sessionId);
+  // 공유 링크의 일회성 토큰(?t=). 중계 서버는 이 토큰 없이는 세션 상태·이벤트·제안을 받지 않는다. 주소창 밖으로 내보내지 않는다.
+  const token = qs.get("t") || "";
+  const withToken = (path) => api + path + (token ? (path.includes("?") ? "&" : "?") + "t=" + encodeURIComponent(token) : "");
   const $ = (id) => document.getElementById(id);
   const el = { live: $("live"), say: $("say"), head: $("head"), sub: $("sub"), note: $("note"), plate: $("plate"), model: $("model"),
     carLine: $("carLine"), chips: $("chips"), chipHint: $("chipHint"), facts: $("facts"), fDoor: $("fDoor"), fBelt: $("fBelt"),
@@ -279,7 +282,7 @@ button { font: inherit; color: inherit; }
     if (kind === "PICKUP_HERE" && selfFix) { body.lat = selfFix.lat; body.lng = selfFix.lng; }
     if (kind === "WAIT_MINUTES") body.minutes = 2;
     failed = false;
-    fetch(api + "/suggest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+    fetch(withToken("/suggest"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then((r) => { if (!r.ok) throw new Error("x"); return r.json(); })
       .then((j) => {
         lastSent = { kind, id: j.id }; lockUntil = Date.now() + 20000;
@@ -299,7 +302,7 @@ button { font: inherit; color: inherit; }
     const accChg = lastPosted && acc !== null && lastPosted.acc !== null && Math.abs(acc - lastPosted.acc) > 5;
     if (now - lastPost < 2000 || !(moved || accChg) || shredded) return;
     lastPost = now; lastPosted = { lat: c.latitude, lng: c.longitude, acc };
-    fetch(api + "/passenger-location", { method: "POST", headers: { "Content-Type": "application/json" },
+    fetch(withToken("/passenger-location"), { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ lat: c.latitude, lng: c.longitude, accuracyM: acc }) }).catch(() => {});
   }
   const onPosErr = () => { el.locBox.hidden = shredded; };
@@ -333,13 +336,13 @@ button { font: inherit; color: inherit; }
   if (isFinite(dLat) && isFinite(dLng)) onPos({ coords: { latitude: dLat, longitude: dLng, accuracy: 12 } }); else startGeo();
 
   try {
-    const es = new EventSource(api + "/events");
+    const es = new EventSource(withToken("/events"));
     es.onopen = () => { if (!shredded) { el.live.textContent = "연결됨"; el.live.classList.add("on"); } };
     es.addEventListener("STATE_UPDATE", (ev) => { try { applyState(JSON.parse(ev.data)); } catch (_) {} });
     es.addEventListener("SESSION_SHREDDED", () => { es.close(); showShredded(); });
     es.onerror = () => {
       if (!shredded) { el.live.textContent = "연결 끊김"; el.live.classList.remove("on"); }
-      fetch(api).then((r) => { if (r.status === 404 && sessionId !== "demo-session") { es.close(); showShredded(); } }).catch(() => {});
+      fetch(withToken("")).then((r) => { if (r.status === 404 && sessionId !== "demo-session") { es.close(); showShredded(); } }).catch(() => {});
     };
   } catch (_) {}
 })();

@@ -39,6 +39,14 @@ class EphemeralRelayClient(
 
     private var activeEventSource: EventSource? = null
 
+    /**
+     * 차량 키: 이 앱 프로세스가 만든 세션을 이 프로세스만 고칠 수 있게 하는 비밀. 세션을 만드는 첫 PUT 에 실리고,
+     * 이후 모든 차량 쪽 호출(PUT·DELETE·suggestion-reply·events)에 헤더로 붙는다. 동승자에게는 전달되지 않는다.
+     */
+    private val carKey: String = java.util.UUID.randomUUID().toString().replace("-", "") + java.util.UUID.randomUUID().toString().replace("-", "").take(16)
+
+    private fun Request.Builder.asCar(): Request.Builder = header(CAR_KEY_HEADER, carKey)
+
     override suspend fun publishSessionState(
         ticket: PickupSessionShareTicket,
         stop: SafePitstopStop,
@@ -93,10 +101,13 @@ class EphemeralRelayClient(
                 put("pickupLabel", liveMap.pickupLabel)
                 liveMap.pickupNote?.let { put("pickupNote", it) }
                 put("pickupVersion", liveMap.pickupVersion)
+                // 동승자 토큰(공유 링크의 ?t=): 서버가 세션을 만들 때 한 번 받아 두고, 동승자 쪽 호출을 이 값으로 검사한다
+                put("passengerToken", ticket.oneTimeToken)
             }.toString()
 
             val request = Request.Builder()
                 .url("${baseUrl.trimEnd('/')}/api/v1/sessions/${ticket.sessionId}")
+                .asCar()
                 .put(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
                 .build()
 
@@ -113,6 +124,7 @@ class EphemeralRelayClient(
                 }.toString()
                 val request = Request.Builder()
                     .url("${baseUrl.trimEnd('/')}/api/v1/sessions/$sessionId/suggestion-reply")
+                    .asCar()
                     .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
                     .build()
                 httpClient.newCall(request).execute().use { it.isSuccessful }
@@ -141,6 +153,7 @@ class EphemeralRelayClient(
             runCatching {
                 val request = Request.Builder()
                     .url("${baseUrl.trimEnd('/')}/api/v1/sessions/$sessionId")
+                    .asCar()
                     .delete()
                     .build()
                 httpClient.newCall(request).execute().use { it.isSuccessful }
@@ -158,6 +171,7 @@ class EphemeralRelayClient(
         activeEventSource?.cancel()
         val request = Request.Builder()
             .url("${baseUrl.trimEnd('/')}/api/v1/sessions/$sessionId/events")
+            .asCar()
             .build()
 
         activeEventSource = EventSources.createFactory(httpClient)
@@ -216,5 +230,9 @@ class EphemeralRelayClient(
     fun close() {
         activeEventSource?.cancel()
         activeEventSource = null
+    }
+
+    companion object {
+        const val CAR_KEY_HEADER = "X-Majung-Car-Key"
     }
 }
