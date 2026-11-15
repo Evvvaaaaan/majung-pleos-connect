@@ -25,7 +25,7 @@
 
 <p><img src="docs/screenshots/pleos_emulator_v3_cantstop.png" width="460" alt="여기 못 서요: 건너편(U턴) / 앞으로 30 m / 한 바퀴" /> <img src="docs/screenshots/pleos_emulator_v3_suggestion.png" width="460" alt="동승자가 지도에서 고른 자리(마중 심볼)와 제안 카드: 여기서 탈게요, 승차 지점에서 57 m, 수락/나중에" /></p>
 
-**시연 영상:** `docs/demo/majung_demo.mp4` (약 2분 40초 · 1080p). **Pleos Connect v2.1.0 전용 에뮬레이터에서 pleos 빌드 실녹화**(런처 오른쪽 앱 영역) — Virtual Console로 주입한 실제 Vehicle SDK 콜백(기어·차속·방향지시등·도어·착좌·하향등)과 실제 제어 호출(도어 잠금 해제·창문·독서등 `onComplete`), 동승자 위치·간편 제안·'여기 못 서요' 재경로, 낮/밤 전환, 동승자 웹 실시간 중계 상태 동기 재생 + 모션 그래픽 해설·내레이션. 차량 위치만은 Pleos 에뮬레이터에 주입 수단이 없어 디버그 빌드의 adb 훅으로 넣었습니다(4-2절). 재현: `tools/demo-video/pleos_flow.sh` → `tools/demo-video/render.mjs`
+**시연 영상:** `docs/demo/majung_demo.mp4` (약 2분 · 1080p). **Pleos Connect v2.1.0 전용 에뮬레이터에서 pleos 빌드 실녹화**(런처 오른쪽 앱 영역) — Virtual Console로 주입한 실제 Vehicle SDK 콜백(기어·차속·방향지시등·도어·착좌·하향등)과 실제 제어 호출(도어 잠금 해제·창문·독서등 `onComplete`), 동승자 위치·간편 제안·'여기 못 서요' 재경로, 낮/밤 전환, 동승자 웹 실시간 중계 상태 동기 재생 . 화면 글자는 단계 이름 한 줄만 두고 설명은 내레이션(남성 음성)이 맡습니다. 차량 위치만은 Pleos 에뮬레이터에 주입 수단이 없어 디버그 빌드의 adb 훅으로 넣었습니다(4-2절). 재현: `tools/demo-video/pleos_flow.sh` → `tools/demo-video/render.mjs`
 
 **Pleos Connect 에뮬레이터 검증 기록:** [`docs/verification/pleos_emulator_evidence.md`](docs/verification/pleos_emulator_evidence.md) (SDK 등록 16건 · 콜백 수신 · 제어 onComplete · 능력 조회 결과 · 에뮬레이터 제약과 대응 · v3 지도/위치/제안/재경로 검증), 원본 로그 `docs/verification/pleos_emulator_logcat_demo.txt`(v2) · `pleos_emulator_logcat_v3.txt`(v3 시연), 중계 타임라인 `pleos_emulator_relay_timeline_v3.jsonl`, 단계 시각 `pleos_flow_taps_v3.json`
 

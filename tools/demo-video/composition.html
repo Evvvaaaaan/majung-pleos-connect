@@ -17,23 +17,10 @@
   .brandbar .pill { font-size: 14px; font-weight: 700; color: var(--ink); background: var(--active); padding: 6px 14px; border-radius: 999px; letter-spacing: 0; }
   .credit { position: absolute; right: 72px; bottom: 36px; font-size: 16px; color: var(--muted); z-index: 5; }
 
-  .title h1 { position: absolute; left: 72px; top: 250px; font-size: 108px; font-weight: 800; letter-spacing: -0.04em; line-height: 1.08; }
-  .title h1 small { display:block; font-size: 28px; font-weight: 600; color: var(--active); letter-spacing: .3em; margin-bottom: 24px; }
-  .title p { position: absolute; left: 76px; top: 760px; font-size: 36px; color: var(--muted); font-weight: 500; letter-spacing: -0.02em; }
-  .title .rule { position: absolute; left: 72px; top: 222px; width: 120px; height: 8px; background: var(--active); border-radius: 4px; }
-
-  .three h2 { position: absolute; left: 72px; top: 120px; font-size: 60px; font-weight: 800; letter-spacing: -0.03em; }
-  .three h2 em { color: var(--active); font-style: normal; }
-  .three .sub { position: absolute; left: 76px; top: 205px; font-size: 26px; color: var(--muted); }
-  .cards { position: absolute; left: 72px; top: 300px; display: flex; gap: 28px; }
-  .card { width: 574px; height: 560px; background: #151B23; border: 1px solid #2A333F; border-radius: 32px; padding: 40px 40px; opacity: 0; transform: translateY(40px); }
-  .card .k { font-size: 20px; color: var(--muted); font-weight: 700; letter-spacing: .06em; }
-  .card .phone { margin-top: 18px; font-size: 42px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; color: #C9D1DB; }
-  .card .phone::before { content: "스마트폰만으로는 알 수 없음"; display: block; font-size: 16px; font-weight: 700; color: var(--danger); letter-spacing: .06em; margin-bottom: 8px; }
-  .card .car { margin-top: 34px; font-size: 30px; font-weight: 700; color: var(--active); line-height: 1.3; }
-  .card .car::before { content: "차량이 확인"; display: block; font-size: 16px; font-weight: 700; color: var(--active); letter-spacing: .06em; margin-bottom: 8px; }
-  .card .sdk { margin-top: 26px; font-family: "SF Mono", Menlo, monospace; font-size: 18px; color: #7FB7D9; background: #0B0F14; padding: 12px 16px; border-radius: 12px; border: 1px solid #2A333F; }
-  .card .does { margin-top: 26px; font-size: 24px; color: var(--white); line-height: 1.45; }
+  .title, .end { text-align: center; }
+  .title .mark, .end .mark { position: absolute; left: 50%; top: 300px; width: 148px; height: 148px; margin-left: -74px; }
+  .title h1, .end h1 { position: absolute; left: 0; right: 0; top: 490px; font-size: 132px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
+  .title p, .end p { position: absolute; left: 0; right: 0; top: 668px; font-size: 40px; color: var(--muted); font-weight: 500; letter-spacing: -0.02em; }
 
   /* 데모 장면 (여러 개): IVI 녹화 + 동승자 웹 */
   .demo .ivi { position: absolute; left: 56px; border-radius: 24px; overflow: hidden; background: #000; border: 1px solid #2A333F; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
@@ -46,26 +33,17 @@
   .caption { position: absolute; left: 56px; bottom: 60px; width: 1284px; display: flex; align-items: center; gap: 18px; opacity: 0; transform: translateY(16px); }
   .caption .n { flex: none; width: 56px; height: 56px; border-radius: 50%; background: var(--active); color: var(--ink); font-weight: 800; font-size: 26px; display: flex; align-items: center; justify-content: center; }
   .caption .t { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; }
-  .caption .t small { display: block; font-size: 20px; color: var(--muted); font-weight: 500; margin-top: 4px; }
+  .caption .t small { display: none; }
+  .steps { position: absolute; right: 580px; bottom: 76px; display: flex; gap: 10px; }
+  .steps i { width: 34px; height: 6px; border-radius: 3px; background: #2A333F; }
+  .steps i.on { background: var(--active); }
+  .demo .ivi .tag, .demo .phone .tag { display: none; }
+  .brandbar, .credit { transition: none; }
   .signal { position: absolute; left: 56px; top: 94px; display: flex; gap: 10px; }
   /* 켜진 라벨만 자리를 차지한다 (꺼진 라벨이 폭을 차지하면 뒤쪽 라벨이 IVI 박스 밖으로 밀려난다) */
   .signal span { display: none; font-family: "SF Mono", Menlo, monospace; font-size: 15px; color: #7FB7D9; background: rgba(11,15,20,.85); border: 1px solid #2A333F; padding: 6px 12px; border-radius: 999px; }
   .signal span.on { display: inline-block; }
 
-  .arch h2 { position: absolute; left: 72px; top: 110px; font-size: 56px; font-weight: 800; letter-spacing: -0.03em; }
-  .arch .flow { position: absolute; left: 72px; top: 230px; display: flex; align-items: center; gap: 22px; }
-  .arch .node { background: #151B23; border: 1px solid #2A333F; border-radius: 24px; padding: 26px 30px; min-width: 300px; opacity: 0; transform: translateY(20px); }
-  .arch .node .h { font-size: 26px; font-weight: 800; }
-  .arch .node .d { font-size: 17px; color: var(--muted); margin-top: 8px; line-height: 1.45; }
-  .arch .arrow { font-size: 44px; color: var(--active); opacity: 0; }
-  .arch .proof { position: absolute; left: 72px; top: 560px; display: flex; gap: 24px; }
-  .arch .proof div { background: #0F141B; border: 1px solid #2A333F; border-radius: 20px; padding: 24px 28px; width: 580px; opacity: 0; }
-  .arch .proof b { display:block; font-size: 22px; color: var(--active); margin-bottom: 10px; }
-  .arch .proof p { font-size: 19px; color: #C9D1DB; line-height: 1.5; }
-
-  .end h1 { position: absolute; left: 72px; top: 380px; font-size: 92px; font-weight: 800; letter-spacing: -0.04em; line-height: 1.1; }
-  .end h1 em { color: var(--active); font-style: normal; }
-  .end p { position: absolute; left: 76px; top: 620px; font-size: 30px; color: var(--muted); line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -74,44 +52,17 @@
   <div class="credit" id="credit">현대자동차그룹 차량용 앱 개발 공모전 · 시연 영상</div>
 
   <section class="layer title" id="L-title">
-    <div class="rule"></div>
-    <h1><small>CURBSIDE PICKUP · PLEOS CONNECT</small>차량 신호로 확인해<br/>"지금 타도 돼요"를<br/>알려 주는 안심 픽업</h1>
-    <p>학원가·역 앞 마지막 100m — "어디야? 무슨 간판 앞이야?" 통화를 차량 신호로 끝냅니다</p>
-  </section>
-
-  <section class="layer three" id="L-three">
-    <h2>스마트폰 위치 공유가 <em>모르는 것</em></h2>
-    <div class="sub">택시 앱이 이미 하는 위치·도착 시간·번호판 표시가 아니라, 차량 신호에서만 나오는 사실로 판단합니다</div>
-    <div class="cards">
-      <div class="card" id="c1"><div class="k">01</div><div class="phone">차가 정말 멈췄는지</div><div class="car">기어 P + 차속 0 일 때만</div><div class="sdk">Gear.registerGearSelection · PERF_VEHICLE_SPEED</div><div class="does">그때서야 동승자 웹이 <b>"지금 타도 돼요"</b>로 바뀝니다</div></div>
-      <div class="card" id="c2"><div class="k">02</div><div class="phone">아이가 어느 문을 열었는지</div><div class="car">차도 쪽 문 열림 즉시 감지</div><div class="sdk">Door.registerDoorPosition(ROW_2_LEFT)</div><div class="does">운전 부하 게이트를 우회하는 <b>즉시 음성 경고</b></div></div>
-      <div class="card" id="c3"><div class="k">03</div><div class="phone">안전벨트를 맸는지</div><div class="car">문 닫힘 + 벨트 체결 감지</div><div class="sdk">Seat.registerSeatBeltBuckledState</div><div class="does">공유 링크 <b>자동 파기</b> · 창문·조명·공조 원복</div></div>
-    </div>
+    <svg class="mark" viewBox="0 0 72 72" aria-hidden="true"><rect width="72" height="72" rx="18" fill="#003984"/><path d="M19 21h34M36 25.5 23.5 51M36 25.5 48.5 51" fill="none" stroke="#FCFDFE" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h1>마중</h1>
+    <p>차량 신호로 확인하는 안심 픽업</p>
   </section>
 
   <div id="demos"></div>
 
-  <section class="layer arch" id="L-arch">
-    <h2>신호가 흐름을 움직입니다 — 운전자가 누르는 버튼은 하나</h2>
-    <div class="flow">
-      <div class="node" id="n1"><div class="h">Vehicle SDK · AAOS</div><div class="d">gear · brake · steering · wiper · turn signal<br/>door×4 · seat×3 · belt×3 · low beam<br/>PERF_VEHICLE_SPEED · FusedLocation · NaviHelper 경로/재경로</div></div>
-      <div class="arrow" id="a1">→</div>
-      <div class="node" id="n2"><div class="h">VehicleSignalHub</div><div class="d">콜백을 하나의 StateFlow로 합치고<br/>조향 각속도·추정 차속 계산</div></div>
-      <div class="arrow" id="a2">→</div>
-      <div class="node" id="n3"><div class="h">SignalDrivenPickupCoordinator</div><div class="d">신호 변화(edge)로 6단계 자동 전진<br/>'여기 못 서요' 3안 · 동승자 제안 수락 → 승차 지점·재경로</div></div>
-      <div class="arrow" id="a3">→</div>
-      <div class="node" id="n4"><div class="h">동승자 웹 · 차량 제어</div><div class="d">지도(차·동승자·승차 지점) + VehicleFacts를 SSE로<br/>잠금 해제·창문·독서등·공조 → 원복</div></div>
-    </div>
-    <div class="proof">
-      <div id="p1"><b>검증</b><p>Pleos Connect v2.1.0 에뮬레이터: SDK 콜백 16종 수신 · 도어/창문/독서등 제어 onComplete<br/>유닛 테스트 24건 · 중계 서버 E2E · sim/pleos 릴리스 APK</p></div>
-      <div id="p2"><b>안전 설계</b><p>원격 도어 개방 없음(잠금 해제만, P단 + 운전자 확인 후)<br/>동승자 위치는 동의 시 세션 동안만 메모리 보관 · 링크 20분 TTL · 탑승 즉시 파기</p></div>
-      <div id="p3"><b>호환성</b><p>checkXXXCapabilities로 트림별 영역·범위 조회(DOOR_LOCK 묶음 영역, 창문 0~10 스케일 환산)<br/>Pleos TTS 실패 시 Android TTS 폴백 · 낮/밤 토큰(하향등 연동)</p></div>
-    </div>
-  </section>
-
   <section class="layer end" id="L-end">
-    <h1>차가 아는 사실로<br/><em>안심하고 타는</em> 마지막 100m</h1>
-    <p>마중 (MAJUNG) · Pleos Connect · Vehicle 2.3.2 / NaviHelper 3.0.5 / FusedLocation 1.1.3 / TextToSpeech 3.3.1<br/>소스·APK: GitHub 저장소 apk/ 폴더</p>
+    <svg class="mark" viewBox="0 0 72 72" aria-hidden="true"><rect width="72" height="72" rx="18" fill="#003984"/><path d="M19 21h34M36 25.5 23.5 51M36 25.5 48.5 51" fill="none" stroke="#FCFDFE" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h1>마중</h1>
+    <p>차량이 확인해 주는 마지막 100m</p>
   </section>
 </div>
 
@@ -138,7 +89,8 @@ function buildDemo(d, i) {
     <div class="signal" id="sig${i}"></div>
     <div class="ivi" style="top:${box.top}px;width:${box.w}px;height:${box.h}px"><video id="rec${i}" muted playsinline preload="auto" style="width:${box.w}px;height:${box.h}px"></video><div class="tag ${d.real ? "real" : ""}">${d.tag || ""}</div></div>
     <div class="phone"><iframe id="web${i}" src="about:blank"></iframe><div class="tag">동승자 무설치 웹 · 실시간 중계 상태 재생</div></div>
-    <div class="caption" id="cap${i}"><div class="n" id="capn${i}">1</div><div class="t" id="capt${i}">&nbsp;<small id="caps${i}"></small></div></div>`;
+    <div class="caption" id="cap${i}"><div class="n" id="capn${i}">1</div><div class="t" id="capt${i}">&nbsp;<small id="caps${i}"></small></div></div>
+    <div class="steps" id="steps${i}">${"<i></i>".repeat(d.stepCount || 7)}</div>`;
   $("demos").appendChild(sec);
   return sec;
 }
@@ -185,12 +137,9 @@ function applyWebState(i, d, rel) {
 window.__seek = async (ms) => {
   const S = TL.scenes;
   fade($("L-title"), ms, S.title.start, S.title.end, 700, 500);
-  fade($("L-three"), ms, S.three.start, S.three.end, 500, 500);
-  fade($("L-arch"), ms, S.arch.start, S.arch.end, 500, 500);
   fade($("L-end"), ms, S.end.start, S.end.end, 700, 900);
-  rise($("c1"), ms, S.three.start + 700); rise($("c2"), ms, S.three.start + 1500); rise($("c3"), ms, S.three.start + 2300);
-  ["n1","a1","n2","a2","n3","a3","n4"].forEach((id, i) => rise($(id), ms, S.arch.start + 500 + i * 320, 400));
-  ["p1","p2","p3"].forEach((id, i) => rise($(id), ms, S.arch.start + 3200 + i * 400, 500));
+  const bare = ms < S.title.end || ms >= S.end.start;
+  document.querySelector(".brandbar").style.opacity = bare ? 0 : 1; $("credit").style.opacity = bare ? 0 : 1;
 
   for (let i = 0; i < TL.demos.length; i++) {
     const d = TL.demos[i]; const sc = S[d.scene];
@@ -201,13 +150,14 @@ window.__seek = async (ms) => {
     applyWebState(i, d, rel);
     let c = null; for (const cap of d.captions) if (rel >= cap.t) c = cap;
     const capEl = $(`cap${i}`);
+    [...$(`steps${i}`).children].forEach((el, k) => el.classList.toggle("on", !!c && k < c.n));
     if (c) { $(`capn${i}`).textContent = c.n; $(`capt${i}`).firstChild.textContent = c.title; $(`caps${i}`).textContent = c.sub; rise(capEl, ms, sc.start + c.t, 400); } else capEl.style.opacity = 0;
     const sig = $(`sig${i}`); if (!sig.childElementCount) for (const e of d.events) { const sp = document.createElement("span"); sp.textContent = e.label; sig.appendChild(sp); }
     [...sig.children].forEach((sp, k) => { const e = d.events[k]; sp.classList.toggle("on", rel >= e.t && rel <= e.t + (e.hold || 6000)); });
   }
   const active = TL.demos.find((d) => ms >= S[d.scene].start && ms < S[d.scene].end);
-  $("pill").textContent = active ? (active.pill || "실제 앱 녹화 · 실시간 중계") : (ms < S.arch.start ? "Pleos Connect 차량용 앱" : "Vehicle 2.3.2 · NaviHelper 3.0.5 · FusedLocation 1.1.3 · TTS 3.3.1");
-  $("credit").textContent = active ? (active.credit || "") : "현대자동차그룹 차량용 앱 개발 공모전 · 시연 영상";
+  $("pill").textContent = active ? (active.pill || "실제 앱 녹화") : "Pleos Connect 차량용 앱";
+  $("credit").textContent = active ? (active.credit || "") : "";
   return true;
 };
 init();
