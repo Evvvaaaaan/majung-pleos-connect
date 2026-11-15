@@ -139,7 +139,7 @@ class Images:
 
 # ------------------------------------------------------------------ 내용
 GITHUB = "https://github.com/Evvvaaaaan/majung-pleos-connect"
-TEAM_NAME = "마중"   # 팀명 = 서비스명
+TEAM_NAME = "커브사이드"   # 팀명 (앱 이름은 마중)
 
 def content(images: Images, ivi_png: Path | None, web_png: Path | None, icon_png: Path | None = None, suggestion_png: Path | None = None):
     c = {}
@@ -294,7 +294,7 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None, icon_png
 
     ref = (
         bullet(f"**GitHub 저장소(소스·APK):** {GITHUB} — 2026.11.16~11.23 Public 유지. 최종 커밋 해시는 제출 이메일 본문에 기재.")
-        + bullet("**릴리스 APK:** apk/ 폴더 — 마중_마중_release.apk (공식 규칙 팀명_앱이름; Pleos Connect 에뮬레이터 v2.1.0 / API 34 대상, Vehicle 2.3.2 실연동 빌드, majung-v2-pleos-release.apk 와 동일), majung-v2-sim-release.apk (일반 AVD·AAOS 에뮬레이터 시연용, 서버 없이 이 APK 하나로 픽업 시작·동승자 제안·수락·맞이·탑승 종료까지 체험 가능). 두 APK 모두 debug 키 서명으로 바로 설치됩니다.")
+        + bullet("**릴리스 APK:** apk/ 폴더 — 커브사이드_마중_release.apk (공식 규칙 팀명_앱이름; Pleos Connect 에뮬레이터 v2.1.0 / API 34 대상, Vehicle 2.3.2 실연동 빌드, majung-v2-pleos-release.apk 와 동일), majung-v2-sim-release.apk (일반 AVD·AAOS 에뮬레이터 시연용, 서버 없이 이 APK 하나로 픽업 시작·동승자 제안·수락·맞이·탑승 종료까지 체험 가능). 두 APK 모두 debug 키 서명으로 바로 설치됩니다.")
         + bullet("**시연 영상:** docs/demo/majung_demo.mp4 (이메일 첨부 동일 파일, 약 2분) — Pleos Connect v2.1.0 전용 에뮬레이터에서 pleos 빌드 실녹화(실제 Vehicle SDK 콜백·제어, 동승자 위치, 동승자가 지도에서 자리를 골라 보낸 '여기서 탈게요'와 수락 후 승차 지점 이동, 여기 못 서요 재경로, 낮/밤 전환) + 동승자 웹 실시간 중계 상태 동기 재생 . 화면 글자는 단계 이름 한 줄만 두고 설명은 내레이션(남성 음성)이 맡습니다. 차량 위치만 adb 훅으로 주입(디버그 빌드).")
         + bullet("**Pleos 에뮬레이터 검증 기록:** docs/verification/pleos_emulator_evidence.md (SDK 등록·콜백·제어 onComplete·능력 조회 로그, 에뮬레이터 제약과 대응), 화면 docs/screenshots/pleos_emulator_*.png")
         + bullet("**검증 방법(저장소에서 재현):** node relay-server/verify_e2e_sse.mjs · ./gradlew :app:testSimDebugUnitTest (58건) · ./scripts/verify_and_build_apk.sh")
