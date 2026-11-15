@@ -310,7 +310,7 @@ def content(images: Images, ivi_png: Path | None, web_png: Path | None, icon_png
         ref += images.add(icon_png, 11.0, "그림 4. Pleos 런처 앱 목록의 마중 아이콘 — 심볼 '파란 판에 새긴 ㅈ'(ㅁㅈ 모노그램, 현대 블루 판 위 흰 ㅈ).")
     c['reference_link'] = ref
 
-    c['shortform_link'] = body("미참여 (공란 제출)")
+    c['shortform_link'] = body("")   # 숏폼 링크는 공란으로 둔다
     return c
 
 
