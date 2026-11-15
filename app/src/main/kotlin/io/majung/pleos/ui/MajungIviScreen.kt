@@ -101,12 +101,17 @@ fun MajungIviScreen(
     onEndSession: () -> Unit,
     simControls: SimControls?
 ) {
-    val night = signals.lowBeamOn || isSystemInDarkTheme()
+    // 밤 화면: 현지 시각이 밤(18시~06시)이거나, 시스템 야간 모드이거나, 하향등이 켜져 있을 때. 낮에는 밝은 화면으로 고정된다.
+    val clockNight by produceState(MajungTokens.isNightHour()) {
+        while (true) { delay(60_000); value = MajungTokens.isNightHour() }
+    }
+    val night = clockNight || signals.lowBeamOn || isSystemInDarkTheme()
     val t = if (night) MajungTokens.Night else MajungTokens.Day
     val engine = remember { CurbsideCarFinderEngine() }
     var sheetOpen by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
     var diagOpen by remember { mutableStateOf(false) }
+    var inviteOpen by remember { mutableStateOf(false) }
     var simOpen by remember { mutableStateOf(false) }
     val nowMs by produceState(System.currentTimeMillis()) {
         while (true) { delay(1_000); value = System.currentTimeMillis() }
@@ -140,13 +145,19 @@ fun MajungIviScreen(
             StartPlate(t, session, inputs, onInputsChange, isDrivingRestricted, actionNotice, onStartSession, modifier = Modifier.align(Alignment.TopStart).padding(start = 64.dp, top = 64.dp))
         }
 
-        // 상단 오른쪽: 연결 칩 (누르면 진단)
+        // 픽업을 시작하면 동승자 초대 QR을 바로 띄운다. 동승자가 연결되거나 제안이 오면 스스로 닫힌다.
+        androidx.compose.runtime.LaunchedEffect(session.sessionId, active) { inviteOpen = active }
+        androidx.compose.runtime.LaunchedEffect(passengerAge != null, session.pendingSuggestion?.id) {
+            if (passengerAge != null || session.pendingSuggestion != null) inviteOpen = false
+        }
+
+        // 상단 오른쪽: 연결 칩 (동승자가 아직 없으면 초대 QR, 연결된 뒤에는 진단)
         val chipText = when {
             !active -> runtimeBadge.trim('[', ']')
-            passengerAge == null -> "동승자 위치 기다리는 중"
+            passengerAge == null -> "QR로 동승자 초대"
             else -> "동승자 연결됨"
         }
-        LiveChip(t, chipText, liveDot = active && passengerAge != null, onClick = { diagOpen = true }, modifier = Modifier.align(Alignment.TopEnd).padding(end = 64.dp, top = 64.dp))
+        LiveChip(t, chipText, liveDot = active && passengerAge != null, onClick = { if (active && passengerAge == null) inviteOpen = true else diagOpen = true }, modifier = Modifier.align(Alignment.TopEnd).padding(end = 64.dp, top = 64.dp))
 
         // 오른쪽 아래: 동승자 제안 카드
         session.pendingSuggestion?.let { s ->
@@ -166,24 +177,24 @@ fun MajungIviScreen(
             when {
                 !active -> {
                     PlateButton(t, "설정", Tone.QUIET, onClick = { settingsOpen = true })
-                    if (simControls != null) PlateButton(t, "시뮬레이션", Tone.QUIET, onClick = { simOpen = true })
+                    if (simControls != null) PlateButton(t, "가상 주행·탑승", Tone.QUIET, onClick = { simOpen = true })
                 }
                 trace.driverUnlocked -> {
                     PlateButton(t, "탑승 확인, 종료", Tone.PRIMARY, onClick = onEndSession)
                     Spacer(Modifier.weight(1f))
-                    if (simControls != null) PlateButton(t, "시뮬레이션", Tone.QUIET, onClick = { simOpen = true })
+                    if (simControls != null) PlateButton(t, "가상 주행·탑승", Tone.QUIET, onClick = { simOpen = true })
                 }
                 stopped -> {
                     PlateButton(t, "주변 확인 끝, 문 열기", Tone.PRIMARY, onClick = onSurroundingsCheckedUnlock)
                     PlateButton(t, "여기 못 서요", Tone.SECONDARY, onClick = { sheetOpen = true })
                     Spacer(Modifier.weight(1f))
-                    if (simControls != null) PlateButton(t, "시뮬레이션", Tone.QUIET, onClick = { simOpen = true })
+                    if (simControls != null) PlateButton(t, "가상 주행·탑승", Tone.QUIET, onClick = { simOpen = true })
                     PlateButton(t, "마중 종료", Tone.QUIET, onClick = onEndSession)
                 }
                 else -> {
                     PlateButton(t, "여기 못 서요", Tone.SECONDARY, onClick = { sheetOpen = true })
                     Spacer(Modifier.weight(1f))
-                    if (simControls != null) PlateButton(t, "시뮬레이션", Tone.QUIET, onClick = { simOpen = true })
+                    if (simControls != null) PlateButton(t, "가상 주행·탑승", Tone.QUIET, onClick = { simOpen = true })
                     PlateButton(t, "마중 종료", Tone.QUIET, onClick = onEndSession)
                 }
             }
@@ -202,6 +213,19 @@ fun MajungIviScreen(
             Text("동승자 웹 중계 서버", color = t.muted, fontSize = 28.sp)
             PlateField(t, inputs.relayUrl, { onInputsChange(inputs.copy(relayUrl = it)) }, "https://…", Modifier.fillMaxWidth())
             Text("기본값은 공개 중계 서버입니다. 로컬 서버로 시험하려면 http://10.0.2.2:8080 으로 바꾸세요.", color = t.muted, fontSize = 24.sp)
+        }
+    }
+    val inviteUrl = session.activeTicket?.shareUrl
+    if (inviteOpen && active && inviteUrl != null) {
+        PlateDialog(t, "동승자 초대", onDismiss = { inviteOpen = false }) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(56.dp)) {
+                QrImage(inviteUrl, 520)
+                Column(verticalArrangement = Arrangement.spacedBy(24.dp), modifier = Modifier.weight(1f)) {
+                    Text("동승자 폰 카메라로 찍으세요", color = t.ink, fontSize = 44.sp, fontWeight = FontWeight.SemiBold)
+                    Text("설치나 로그인 없이 동승자 화면이 열립니다. 링크는 탑승 확인 즉시, 늦어도 20분 뒤 사라집니다.", color = t.muted, fontSize = 28.sp, lineHeight = 40.sp)
+                    PlateButton(t, "진단 보기", Tone.QUIET, onClick = { inviteOpen = false; diagOpen = true })
+                }
+            }
         }
     }
     if (diagOpen) {
@@ -225,7 +249,7 @@ fun MajungIviScreen(
         }
     }
     if (simOpen && simControls != null) {
-        PlateDialog(t, "시뮬레이션 (sim 빌드 전용)", onDismiss = { simOpen = false }) {
+        PlateDialog(t, "가상 주행·탑승 (가상 신호 빌드 전용)", onDismiss = { simOpen = false }) {
             PlateButton(t, "주행 후 간판 앞 P단 정차", Tone.SECONDARY, enabled = active, onClick = { simOpen = false; simControls.onDrive() }, modifier = Modifier.fillMaxWidth())
             PlateButton(t, "동승자 제안: 여기서 탈게요 (서버 없이)", Tone.SECONDARY, enabled = active && session.pendingSuggestion == null && session.phase != PickupPhase.STEP5_BOARDING_WELCOME, onClick = { simOpen = false; simControls.onPassengerSuggest() }, modifier = Modifier.fillMaxWidth())
             PlateButton(t, "동승자 탑승 (문, 착좌, 벨트)", Tone.SECONDARY, enabled = session.phase == PickupPhase.STEP5_BOARDING_WELCOME, onClick = { simOpen = false; simControls.onBoarding() }, modifier = Modifier.fillMaxWidth())

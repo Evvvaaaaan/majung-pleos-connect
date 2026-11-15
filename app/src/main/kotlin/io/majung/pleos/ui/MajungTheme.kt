@@ -12,7 +12,8 @@ import io.majung.pleos.ui.map.MapPalette
  *   서체는 따로 싣지 않고 차량에 탑재된 시스템 서체(FontFamily.Default)를 그대로 쓴다. 숫자도 같은 서체, 가는 굵기로 크게.
  * - 라운드는 한 단계(12dp), 선은 얇게(2dp), 그림자는 없다. 판은 바탕과 밝기 차이로만 뜬다.
  * - 코발트(accent)는 '지금 살아 있는 것'(내 차 마커, 연결 칩의 점, 기본 행동의 테두리)에만 쓴다. 승차 지점은 흰 판 위 현대 엠블럼.
- * - 낮/밤 두 벌: 하향등(lowBeam) 또는 시스템 야간 모드에서 밤 토큰으로 바뀐다. 밤에는 검은 판이 흰 판으로 뒤집힌다.
+ * - 낮/밤 두 벌: 현지 시각이 밤(18시~06시)이거나 시스템 야간 모드이거나 하향등(lowBeam)이 켜져 있으면 밤 토큰을 쓴다.
+ *   밤에는 바탕·판·버튼이 모두 어둡다(판은 바탕보다 한 단계 밝은 먹색). 낮에는 밝은 바탕에 검은 판.
  */
 data class MajungPalette(
     val paper: Color, val paper2: Color, val paper3: Color,
@@ -50,6 +51,9 @@ object MajungTokens {
         accent = Color(0xFF4D96FF), accentInk = Color(0xFF0E1116),
         go = Color(0xFF2DB46B), goInk = Color(0xFF0E1116),
         stop = Color(0xFFE85A4E), stopInk = Color(0xFF0E1116),
-        plate = Color(0xFFF2F4F7), plateInk = Color(0xFF111417), plateMuted = Color(0xFF4A5058)
+        plate = Color(0xFF232933), plateInk = Color(0xFFF2F4F7), plateMuted = Color(0xFFA3AAB5)
     )
+
+    /** 현지 시각 기준 밤 여부 (18시~06시). 시계가 낮이면 시뮬레이션 주행도 하향등을 켜지 않는다. */
+    fun isNightHour(hour: Int = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)): Boolean = hour >= 18 || hour < 6
 }

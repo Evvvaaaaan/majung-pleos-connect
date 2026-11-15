@@ -165,8 +165,10 @@ class SimDriveScenario(private val hw: SimVehicleHardware, private val onLog: (S
                 Triple(20, 7f, PleosTurnSignalState.RIGHT), Triple(12, 2f, PleosTurnSignalState.RIGHT)
             )
             // 저녁 학원가: 하향등 ON, 경로 안내 중(다음 회전 = 정차 포켓 진입 우회전)
-            hw.emit { onGearChanged(GearPosition.D); onBrakePedalChanged(false); onLowBeamChanged(true) }
-            onLog("[SIM] 주행 시작 · 정차 지점 남쪽 300m · 하향등 ON")
+            // 하향등은 실제 시각을 따른다: 낮에는 끄고 밤에는 켠다 (낮에 켜면 화면이 밤 색으로 바뀌어 낮·밤이 섞여 보인다)
+            val night = io.majung.pleos.ui.MajungTokens.isNightHour()
+            hw.emit { onGearChanged(GearPosition.D); onBrakePedalChanged(false); onLowBeamChanged(night) }
+            onLog("[SIM] 주행 시작 · 정차 지점 남쪽 300m · 하향등 ${if (night) "ON" else "OFF"}")
             for ((south, speed, turn) in steps) {
                 if (!running) return@thread
                 val lat = stopLat - south / 111_320.0
@@ -221,7 +223,7 @@ class SimRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
     private var simReadingLightOn = false
     private var simSeatOccupied = false
 
-    override val runtimeBadgeLabel: String = "[SIM 시뮬레이션]"
+    override val runtimeBadgeLabel: String = "[가상 신호 빌드]"
     override val usesRealPleosSdk: Boolean = false
     override val lowLevelHardware: LowLevelVehicleHardware = simHardware
     override val naviGateway: NaviRouteGateway = simNavi
@@ -255,7 +257,7 @@ class SimRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
 
     override fun resetSimulatedScenario() {
         scenario.resetToStart()
-        simHardware.emit { onSpeedChanged(0f); onTurnSignalChanged(PleosTurnSignalState.OFF) }
+        simHardware.emit { onSpeedChanged(0f); onTurnSignalChanged(PleosTurnSignalState.OFF); onLowBeamChanged(io.majung.pleos.ui.MajungTokens.isNightHour()) }
     }
 
     override fun playSimulatedApproachAndStop(onLog: (String) -> Unit) {

@@ -97,4 +97,11 @@ class DrivingLoadGateTest {
         assertTrue(gate.drainEligiblePrompts(31_000L).isEmpty())
         assertEquals(0, gate.pendingCount())
     }
+
+    @Test
+    fun nightThemeHoursAre18To06() {
+        val night = io.majung.pleos.ui.MajungTokens::isNightHour
+        assertTrue(night(18)); assertTrue(night(23)); assertTrue(night(0)); assertTrue(night(5))
+        assertFalse(night(6)); assertFalse(night(12)); assertFalse(night(17))
+    }
 }
