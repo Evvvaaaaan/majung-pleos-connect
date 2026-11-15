@@ -69,6 +69,7 @@ class MainActivity : ComponentActivity() {
     private var passengerReadyNote by mutableStateOf<String?>(null)
     private var sdkCallbackLog by mutableStateOf("Pleos Connect 런타임 초기화 대기 중...")
     private var actionNotice by mutableStateOf<String?>(null)
+    private lateinit var suggestionNotifier: SuggestionNotifier
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -119,6 +120,22 @@ class MainActivity : ComponentActivity() {
             }
         }
         lifecycleScope.launch { capabilityGateway.initializeAndProbe() }
+
+        // 내비가 앞에 있어도 동승자 제안에 답할 수 있게 헤드업 알림으로도 띄운다
+        suggestionNotifier = SuggestionNotifier(this) { accept -> lifecycleScope.launch { coordinator.resolveSuggestion(accept) } }
+        suggestionNotifier.register()
+        lifecycleScope.launch {
+            var shownId: String? = null
+            orchestrator.uiState.collect { st ->
+                val s = st.pendingSuggestion
+                if (s?.id != shownId) {
+                    shownId = s?.id
+                    val pickup = st.liveMap.pickup; val spot = s?.point
+                    val dist = if (pickup != null && spot != null) finder.distanceMeters(pickup.lat, pickup.lng, spot.lat, spot.lng) else null
+                    suggestionNotifier.show(s, st.currentStop?.passengerName.orEmpty(), dist)
+                }
+            }
+        }
 
         // --- 차량 신호 실연결: SDK register* → Hub → Coordinator -------------------------------
         runtimeBridge.lowLevelHardware.registerTelemetryCallbacks(signalHub)
@@ -211,11 +228,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestCarSpeedPermissionAndSubscribe() {
-        if (checkSelfPermission(AaosSpeedSource.PERMISSION) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(AaosSpeedSource.PERMISSION), REQ_CAR_SPEED)
-            return
+        // 차속 권한과 알림 권한(API 33+)을 한 번에 묻는다. 권한 요청은 동시에 하나만 처리되기 때문이다.
+        val granted = android.content.pm.PackageManager.PERMISSION_GRANTED
+        val missing = buildList {
+            if (checkSelfPermission(AaosSpeedSource.PERMISSION) != granted) add(AaosSpeedSource.PERMISSION)
+            if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != granted) add(android.Manifest.permission.POST_NOTIFICATIONS)
         }
-        subscribeAaosSpeed()
+        if (missing.isNotEmpty()) requestPermissions(missing.toTypedArray(), REQ_CAR_SPEED)
+        if (AaosSpeedSource.PERMISSION !in missing) subscribeAaosSpeed()
     }
 
     private fun subscribeAaosSpeed() {
@@ -228,7 +248,7 @@ class MainActivity : ComponentActivity() {
     @Deprecated("Deprecated in Java")
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQ_CAR_SPEED) subscribeAaosSpeed()
+        if (requestCode == REQ_CAR_SPEED && AaosSpeedSource.PERMISSION in permissions) subscribeAaosSpeed()
     }
 
     private fun startSixStepPickupFlow() {
@@ -384,6 +404,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         GleoCommandBus.onServiceCommandReceived = null
+        suggestionNotifier.unregister()
         debugLocationReceiver?.let { runCatching { unregisterReceiver(it) } }
         speedSource?.stop()
         runtimeBridge.stopLocationUpdates()

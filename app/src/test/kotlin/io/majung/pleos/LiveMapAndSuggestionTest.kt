@@ -264,4 +264,26 @@ class LiveMapAndSuggestionTest {
         assertNull(s.liveMap.pickup)
         assertNull(s.liveMap.proposed)
     }
+
+    @Test
+    fun readyMessageShowsABannerAndNeedsNoAnswer() = runTest {
+        val h = Harness()
+        h.start()
+        h.orchestrator.onPassengerSuggestion(PassengerSuggestion("r1", SuggestionKind.READY, "지금 나가요", null, null, 7_000L))
+        val s = h.orchestrator.uiState.value
+        assertEquals("지수님이 준비 완료를 알렸어요", s.lastBannerMessage)
+        assertNull(s.liveMap.proposed)
+        assertTrue(h.spoken.any { it.contains("지수님 제안: 지금 나가요") })
+    }
+
+    @Test
+    fun headsUpNotificationTextAddsDistanceOnlyForAChosenSpot() {
+        val here = suggestion(SuggestionKind.PICKUP_HERE, GeoPoint(37.49893, 127.06205))
+        assertEquals("여기서 탈게요 · 승차 지점에서 57 m", io.majung.pleos.ui.SuggestionNotifier.textFor(here, 57))
+        assertEquals("여기서 탈게요", io.majung.pleos.ui.SuggestionNotifier.textFor(here, null))
+        val ready = PassengerSuggestion("r1", SuggestionKind.READY, "지금 나가요", null, null, 7_000L)
+        assertEquals("지금 나가요", io.majung.pleos.ui.SuggestionNotifier.textFor(ready, 12))
+        assertEquals("지수님의 제안", io.majung.pleos.ui.SuggestionNotifier.titleFor("지수"))
+        assertEquals("동승자님의 제안", io.majung.pleos.ui.SuggestionNotifier.titleFor(" "))
+    }
 }

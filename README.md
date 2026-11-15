@@ -8,7 +8,8 @@
 
 **화면 구성 (v3): 지도와 지금 누를 버튼만 둡니다.**
 - **차량 화면** — 지도 위에 동승자 위치·내 차·승차 지점만. 가는 동안 누를 버튼은 **[여기 못 서요]** 하나(건너편(U턴) / 앞으로 30 m / 한 바퀴 → 승차 지점 이동 + NaviHelper 재경로 + 동승자 웹 즉시 반영), 멈춘 뒤에는 **[주변 확인 끝, 문 열기]** 하나. 동승자의 간편 제안은 카드로 도착해 [수락]/[나중에]. 동승자가 지도에서 고른 자리는 수락 전까지 차량 지도에 마중 심볼로 보입니다. 차량 신호·로그는 연결 칩을 눌러 여는 진단 창으로 옮겼습니다.
-- **동승자 웹** — 지도(차·나·승차 지점), 번호판 끝 4자리, 간편 제안 세 개("여기서 탈게요"는 지도를 움직여 탈 자리를 핀에 맞춘 뒤 보내며 그 좌표가 차량에 전달됨, "건너편으로 갈게요", "2분만 기다려 주세요"). 차가 P단에 서면 "지금 타도 돼요"로 바뀝니다.
+- **내비가 앞에 있을 때** — 동승자 제안은 시스템 알림으로도 전달되고, 알림의 [수락]/[나중에]가 화면 카드와 같은 동작을 합니다(`ui/SuggestionNotifier.kt`). Android Automotive 에뮬레이터의 알림 센터에서 동작을 확인했고, 내비 화면 위 팝업 표시는 Pleos 에뮬레이터에서 아직 확인하지 않았습니다.
+- **동승자 웹** — 지도(차·나·승차 지점), 번호판 끝 4자리, 간편 제안 네 개("지금 나가요"는 출발을 알리고, "여기서 탈게요"는 지도를 움직여 탈 자리를 핀에 맞춘 뒤 보내며 그 좌표가 차량에 전달됨, "건너편으로 갈게요", "2분만 기다려 주세요"). 차가 P단에 서면 "지금 타도 돼요"로 바뀝니다.
 - 디자인은 Pleos Connect 런처의 디자인(밝은 바탕, 검은 판, 작은 라운드, 얇은 선, 시스템 서체)을 따르고 하향등이 켜지면 야간 색상으로 바뀝니다. 세 가지 후보를 비교한 시안: [`docs/design/`](docs/design/README.md)
 
 | 스마트폰만으로는 알 수 없는 것 | 차량이 확인하는 방법 (Vehicle SDK 신호) | 마중이 하는 일 |
@@ -37,11 +38,11 @@
 2. **가장 빠른 실행 — APK 하나, 서버 불필요 (일반 Android Automotive 에뮬레이터, 2분)**: `apk/majung-v2-sim-release.apk` 설치 → [픽업 시작, 링크 보내기] → 화면 아래 **[시뮬레이션]** → "동승자 제안: 여기서 탈게요 (서버 없이)" → 카드에서 [수락] → [주변 확인 끝, 문 열기] → [시뮬레이션] → "동승자 탑승". 승차 지점 이동, 잠금 해제·창문, 환대, 탑승 완료와 공유 종료까지 기기 안에서 끝납니다. 화면: [`docs/screenshots/sim_apk_only_suggestion.png`](docs/screenshots/sim_apk_only_suggestion.png)
    - **동승자 폰 화면까지 보려면** 중계 서버를 켭니다: `PORT=8080 node relay-server/server.mjs` 후 같은 순서. 동승자 웹은 `curl http://127.0.0.1:8080/api/v1/sessions/_latest` 가 주는 `sessionId`·`passengerToken`으로 `http://localhost:8080/m/<sessionId>?t=<passengerToken>&demoLat=37.49893&demoLng=127.06164` 를 브라우저에서 엽니다.
 3. **Pleos Connect 에뮬레이터 (실 SDK)**: 위 중계 서버 + `apk/majung-v2-pleos-release.apk` → Virtual Console(127.0.0.1:8088)로 기어 P·차속 0·문·착좌·하향등을 주입하면 차량 화면과 동승자 웹이 즉시 반응합니다. 세부는 4-2절.
-4. **코드에서 확인**: 2절의 표(README 주장 ↔ 소스), `node relay-server/verify_e2e_sse.mjs`, `./gradlew :app:testSimDebugUnitTest`(56건), `docs/verification/pleos_emulator_evidence.md`(실제 SDK 로그).
+4. **코드에서 확인**: 2절의 표(README 주장 ↔ 소스), `node relay-server/verify_e2e_sse.mjs`, `./gradlew :app:testSimDebugUnitTest`(58건), `docs/verification/pleos_emulator_evidence.md`(실제 SDK 로그).
 
 ### 주장과 그것을 증명하는 테스트
 
-기획서와 이 문서의 주장마다, 그 주장이 깨지면 실패하는 테스트가 있습니다. 푸시할 때마다 GitHub Actions(`.github/workflows/verify.yml`)가 중계 서버 종단 검증과 유닛 테스트 56건을 다시 돌립니다.
+기획서와 이 문서의 주장마다, 그 주장이 깨지면 실패하는 테스트가 있습니다. 푸시할 때마다 GitHub Actions(`.github/workflows/verify.yml`)가 중계 서버 종단 검증과 유닛 테스트 58건을 다시 돌립니다.
 
 | 주장 | 테스트 (app/src/test) |
 | --- | --- |
@@ -104,7 +105,7 @@
 
 ```bash
 node relay-server/verify_e2e_sse.mjs          # 중계 서버 E2E: 좌표 필드 sanitize · VehicleFacts 통과 · PASSENGER_LOCATION/SUGGESTION · suggestion-reply · SSE · DELETE 파기
-./gradlew :app:testSimDebugUnitTest           # 유닛 테스트 56건 (아래 "주장과 그것을 증명하는 테스트" 표 참고)
+./gradlew :app:testSimDebugUnitTest           # 유닛 테스트 58건 (아래 "주장과 그것을 증명하는 테스트" 표 참고)
 ./scripts/verify_and_build_apk.sh             # 위 두 가지 + sim/pleos release APK 생성
 ```
 

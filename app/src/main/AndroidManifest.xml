@@ -4,6 +4,8 @@
     <!-- 무설치 동승자 안심 웹 중계 서버(SSE/REST) 통신 권한 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 내비 화면 위에 동승자 제안을 헤드업 알림으로 띄운다 (권한이 없으면 화면 카드와 음성 안내만 동작) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
       [Pleos Connect 공식 공개 권한 선언 — 비공개 PRIVATE_* 권한 미사용]
