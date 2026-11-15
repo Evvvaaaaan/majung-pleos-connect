@@ -201,8 +201,14 @@ docs/submission/                         # 접수양식 DOCX · 제출 체크리
 
 ## 7. APK · 제출물 위치
 
-- `apk/majung-v2-pleos-release.apk` — Pleos Connect 에뮬레이터용 (Vehicle SDK 실연동)
-- `apk/majung-v2-sim-release.apk` — Android Automotive / 일반 AVD 시연용 (`applicationId io.majung.pleos.sim`)
+`apk/` 폴더에는 APK가 세 개 있습니다.
+
+| 파일 | 용도 |
+| --- | --- |
+| `apk/커브사이드_마중_release.apk` | **공모전 제출 APK.** 공식 규칙 `팀명_앱이름_release.apk`에 맞춘 이름입니다(팀명 커브사이드, 앱 이름 마중). Pleos Connect 에뮬레이터용이며 아래 pleos 릴리스와 내용이 같은 파일입니다. |
+| `apk/majung-v2-pleos-release.apk` | Pleos Connect 에뮬레이터용 (Vehicle SDK 실연동). 빌드 스크립트가 만드는 원본 이름입니다. |
+| `apk/majung-v2-sim-release.apk` | Android Automotive / 일반 AVD 시연용 (`applicationId io.majung.pleos.sim`). 서버 없이 전 과정을 볼 수 있습니다. |
+
 - `docs/demo/majung_demo.mp4` — 시연 영상
 - `docs/submission/마중_접수양식_v3.docx` — 공식 접수양식(02 심사 자료 작성본)
-- 두 APK 모두 debug 키 서명으로 별도 키 없이 설치됩니다. 재빌드: `./scripts/verify_and_build_apk.sh`
+- 세 APK 모두 debug 키 서명으로 별도 키 없이 설치됩니다. 재빌드: `./scripts/verify_and_build_apk.sh`
