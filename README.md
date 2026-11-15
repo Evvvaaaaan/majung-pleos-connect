@@ -154,6 +154,7 @@ MAJUNG_RELAY_BASE=https://majung-relay-6d6d41.azurewebsites.net node relay-serve
 - 기본 주소가 공개 HTTPS 서버라서 설정을 바꾸지 않아도 폰에서 열리고, 폰 브라우저의 위치 공유도 동작합니다. 다른 서버를 쓰려면 **설정**(대기 화면 왼쪽 아래)에서 주소를 바꾼 뒤 세션을 시작합니다.
   - 같은 Wi‑Fi: `http://<PC의 LAN IP>:8080` — 지도·번호판·제안은 되지만, 폰 브라우저의 위치 공유는 HTTPS가 아니라서 꺼집니다(자리는 지도에서 고를 수 있음).
   - 위치 공유까지: HTTPS 주소가 필요합니다. 공개 서버에 `node relay-server/server.mjs`를 올리거나, 시연 PC에서 `cloudflared tunnel --url http://localhost:8080`(brew install cloudflared, 계정 불필요)로 받은 `https://….trycloudflare.com` 주소를 설정에 넣습니다. 에뮬레이터도 그 주소로 연결됩니다.
+- 멀리 있는 동승자에게 링크를 보내는 방법(차량 메시지 앱 문자, 운전자 폰을 거친 카카오톡, 연결 코드, 가족 링크)은 계획 단계입니다: [`docs/plan/link-delivery.md`](docs/plan/link-delivery.md)
 - 동승자가 폰에서 지도를 움직여 "여기서 탈게요"를 보내면 차량 지도에 그 자리가 마중 심볼로 뜨고, 카드에서 [수락]하면 승차 지점이 옮겨집니다.
 
 ### 4-3. Android Automotive OS 에뮬레이터 / 일반 AVD — sim 플레이버
