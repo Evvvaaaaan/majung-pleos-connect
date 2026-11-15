@@ -62,11 +62,11 @@
    - **로컬 서버로 시험하려면** `PORT=8080 node relay-server/server.mjs` 를 켜고 앱의 [설정](대기 화면 왼쪽 아래)에서 주소를 `http://10.0.2.2:8080` 으로 바꿉니다.
    - **공모전 제출 APK**: `apk/커브사이드_마중_release.apk` (팀명 커브사이드, 앱 이름 마중. 아래 pleos 릴리스 APK와 같은 파일입니다.)
 3. **Pleos Connect 에뮬레이터 (실 SDK)**: `adb install -r apk/커브사이드_마중_release.apk` (서버 준비 불필요) → 화면 아래 줄의 앱 목록(격자 아이콘)에서 **마중 (MAJUNG)** 실행 → [픽업 시작] → 연결 칩의 QR을 휴대폰으로 찍음 → Virtual Console(127.0.0.1:8088)로 기어 P·차속 0·문·착좌·하향등을 주입하면 차량 화면과 동승자 웹이 즉시 반응합니다. 세부는 4-2절.
-4. **코드에서 확인**: 2절의 표(README 주장 ↔ 소스), `node relay-server/verify_e2e_sse.mjs`, `./gradlew :app:testSimDebugUnitTest`(58건), `docs/verification/pleos_emulator_evidence.md`(실제 SDK 로그).
+4. **코드에서 확인**: 2절의 표(README 주장 ↔ 소스), `node relay-server/verify_e2e_sse.mjs`, `./gradlew :app:testSimDebugUnitTest`(59건), `docs/verification/pleos_emulator_evidence.md`(실제 SDK 로그).
 
 ### 주장과 그것을 증명하는 테스트
 
-기획서와 이 문서의 주장마다, 그 주장이 깨지면 실패하는 테스트가 있습니다. 푸시할 때마다 GitHub Actions(`.github/workflows/verify.yml`)가 중계 서버 종단 검증과 유닛 테스트 58건을 다시 돌립니다.
+기획서와 이 문서의 주장마다, 그 주장이 깨지면 실패하는 테스트가 있습니다. 푸시할 때마다 GitHub Actions(`.github/workflows/verify.yml`)가 중계 서버 종단 검증과 유닛 테스트 59건을 다시 돌립니다.
 
 | 주장 | 테스트 (app/src/test) |
 | --- | --- |
@@ -129,7 +129,7 @@
 
 ```bash
 node relay-server/verify_e2e_sse.mjs          # 중계 서버 E2E: 좌표 필드 sanitize · VehicleFacts 통과 · PASSENGER_LOCATION/SUGGESTION · suggestion-reply · SSE · DELETE 파기
-./gradlew :app:testSimDebugUnitTest           # 유닛 테스트 58건 (아래 "주장과 그것을 증명하는 테스트" 표 참고)
+./gradlew :app:testSimDebugUnitTest           # 유닛 테스트 59건 (아래 "주장과 그것을 증명하는 테스트" 표 참고)
 ./scripts/verify_and_build_apk.sh             # 위 두 가지 + sim/pleos release APK 생성
 ```
 
