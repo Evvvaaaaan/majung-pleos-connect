@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -209,10 +210,10 @@ fun MajungIviScreen(
             DiagLine(t, "SDK/중계", sdkCallbackLog)
             DiagLine(t, "공유 링크", session.activeTicket?.shareUrl ?: "세션 시작 시 생성 (최대 20분, 탑승 확인 즉시 파기)")
             session.activeTicket?.shareUrl?.let { url ->
-                // 시연·심사: 동승자 폰으로 QR을 찍으면 같은 링크가 열린다 (폰이 닿는 중계 서버 주소를 설정에 넣어 둘 것)
+                // 시연·심사: 동승자 폰으로 QR을 찍으면 같은 링크가 열린다 (기본 중계 서버가 공개 HTTPS 주소라 어디서든 열린다)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(32.dp)) {
                     QrImage(url, 280)
-                    Text("동승자 폰으로 이 QR을 찍으면 같은 링크가 열립니다. 폰에서 닿는 중계 서버 주소(공개 HTTPS 또는 같은 Wi-Fi의 PC 주소)를 설정에 넣어 두세요.", color = t.muted, fontSize = 24.sp, modifier = Modifier.widthIn(max = 900.dp))
+                    Text("동승자 폰으로 이 QR을 찍으면 동승자 화면이 열립니다. 링크는 탑승 확인 즉시, 늦어도 20분 뒤 사라집니다.", color = t.muted, fontSize = 24.sp, modifier = Modifier.widthIn(max = 900.dp))
                 }
             }
             DiagLine(t, "차량 신호", "기어 ${signals.gear.name}, ${signals.speedKmh.toInt()} km/h (${signals.speedSource.name.lowercase()}), 방향지시등 ${signals.turnSignal.name}, 하향등 ${if (signals.lowBeamOn) "ON" else "OFF"}, 와이퍼 ${if (signals.wiperOn) "ON" else "OFF"}")
@@ -466,9 +467,11 @@ private fun qrBitmap(text: String, px: Int): android.graphics.Bitmap {
 
 @Composable
 private fun PlateDialog(t: MajungPalette, title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
+    // 시스템 기본 대화상자 폭(약 560dp)에 맞춰 줄어들면 글자가 겹친다. 설계 폭 그대로 쓰고, 내용이 길면 안에서 스크롤한다.
+    Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
-            modifier = Modifier.width(1400.dp).background(t.paper3, Shape).border(MajungTokens.Hairline, t.rule, Shape).padding(48.dp),
+            modifier = Modifier.width(1400.dp).heightIn(max = 1240.dp).background(t.paper3, Shape).border(MajungTokens.Hairline, t.rule, Shape)
+                .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(48.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

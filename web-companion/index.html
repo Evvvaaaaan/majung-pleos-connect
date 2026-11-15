@@ -201,7 +201,9 @@ button { font: inherit; color: inherit; }
   };
   function fit(force) {
     if (!map || shredded || picking) return;
-    const keys = Object.keys(pts).filter((k) => pts[k]);
+    // 내 위치가 승차 지점에서 2 km 넘게 멀면(다른 동네에서 링크를 연 경우) 지도 범위에서 뺀다. 넣으면 차와 승차 지점이 점으로 줄어든다.
+    const anchor = pts.pick || pts.car;
+    const keys = Object.keys(pts).filter((k) => pts[k] && !(k === "me" && anchor && dist(pts.me, anchor) > 2000));
     if (!keys.length) return;
     const moved = keys.some((k) => !fitted[k] || dist(fitted[k], pts[k]) > 5);
     if (!force && (!moved || Date.now() - lastUserAt < 10000)) return;

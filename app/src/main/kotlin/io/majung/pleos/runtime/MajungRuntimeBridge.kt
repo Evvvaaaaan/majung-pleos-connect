@@ -67,6 +67,8 @@ interface MajungRuntimeBridge : BoardingActuator {
      * pleos 플레이버는 false/no-op (실제 SDK 콜백만 사용).
      */
     val supportsSimulatedScenario: Boolean get() = false
+    /** 새 픽업을 시작할 때 시뮬레이션 차량을 출발 위치로 되돌린다 (실연동 빌드에서는 아무것도 하지 않는다). */
+    fun resetSimulatedScenario() {}
     fun playSimulatedApproachAndStop(onLog: (String) -> Unit = {}) {}
     fun playSimulatedPassengerBoarding(onLog: (String) -> Unit = {}) {}
     fun playSimulatedTrafficSideDoorMistake(onLog: (String) -> Unit = {}) {}

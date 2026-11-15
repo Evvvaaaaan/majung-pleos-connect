@@ -148,9 +148,13 @@ private fun createMapView(context: Context): MapView = MapView(context).apply {
 private class FitTracker {
     private var lastPoints: List<GeoPoint> = emptyList()
     private val engine = CurbsideCarFinderEngine()
+    private val FIT_MAX_PASSENGER_M = 2_000
 
     fun fitIfNeeded(map: MapView, state: LiveMapState) {
-        val points = listOfNotNull(state.car, state.passenger, state.pickup, state.proposed)
+        // 동승자가 승차 지점에서 2 km 넘게 떨어져 있으면(다른 동네에서 링크를 연 경우) 지도 범위에 넣지 않는다. 넣으면 차와 승차 지점이 점으로 줄어든다.
+        val anchor = state.pickup ?: state.car
+        val nearPassenger = state.passenger?.takeIf { p -> anchor == null || engine.distanceMeters(p.lat, p.lng, anchor.lat, anchor.lng) <= FIT_MAX_PASSENGER_M }
+        val points = listOfNotNull(state.car, nearPassenger, state.pickup, state.proposed)
         if (points.isEmpty()) return
         val changed = points.size != lastPoints.size ||
             points.zip(lastPoints).any { (a, b) -> engine.distanceMeters(a.lat, a.lng, b.lat, b.lng) > 5 }

@@ -255,6 +255,7 @@ class MainActivity : ComponentActivity() {
         passengerReadyNote = null
         actionNotice = null
         relayClient.baseUrl = relayUrlInput
+        runtimeBridge.resetSimulatedScenario()
         coordinator.resetForNewSession()
 
         val stop = pitstopResolver.resolveKeywordToSafePitstop(

@@ -141,6 +141,14 @@ class SimDriveScenario(private val hw: SimVehicleHardware, private val onLog: (S
     private val stopLng = 127.061420
     @Volatile private var running = false
 
+    /** 시뮬레이션 차량의 현재 위치. 픽업을 시작하면 정차 지점 남쪽 300 m에서 출발 대기하므로, 동승자는 "차가 오고 있어요" 단계에서 위치 공유와 제안을 쓸 수 있다. */
+    @Volatile var lastFix: VehicleLocationReading = startFix()
+        private set
+
+    private fun startFix() = fix(stopLat - 300 / 111_320.0, stopLng)
+
+    fun resetToStart() { running = false; lastFix = startFix() }
+
     private fun fix(lat: Double, lng: Double, heading: Double = 0.0, conf: Double = 0.88) = VehicleLocationReading(
         supported = true, latitude = lat, longitude = lng, headingDeg = heading, confidence = conf,
         rawSummary = "[SIM] FusedLocation(${String.format(Locale.US, "%.5f", lat)}, ${String.format(Locale.US, "%.5f", lng)}, conf=${String.format(Locale.US, "%.2f", conf)})"
@@ -166,11 +174,11 @@ class SimDriveScenario(private val hw: SimVehicleHardware, private val onLog: (S
                     onSpeedChanged(speed); onTurnSignalChanged(turn); onBrakePedalChanged(speed < 25f)
                     onNextTurnDistanceChanged(if (south > 20) south - 10 else Int.MAX_VALUE)
                 }
-                onFix(fix(lat, stopLng))
+                lastFix = fix(lat, stopLng); onFix(lastFix)
                 Thread.sleep(1_000)
             }
             hw.emit { onSpeedChanged(0f); onBrakePedalChanged(true); onNextTurnDistanceChanged(Int.MAX_VALUE) }
-            onFix(fix(stopLat + 12 / 111_320.0, stopLng))
+            lastFix = fix(stopLat + 12 / 111_320.0, stopLng); onFix(lastFix)
             Thread.sleep(600)
             hw.emit { onGearChanged(GearPosition.P) }
             onLog("[SIM] 간판 +12m 지점 P단 정차")
@@ -232,12 +240,7 @@ class SimRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
     }
 
     override fun queryLastKnownVehicleLocation(onResult: (VehicleLocationReading) -> Unit) {
-        onResult(
-            VehicleLocationReading(
-                supported = true, latitude = 37.498920, longitude = 127.061420, headingDeg = 0.0, confidence = 0.88,
-                rawSummary = "[SIM] FusedLocation(37.49892, 127.06142, conf=0.88)"
-            )
-        )
+        onResult(scenario.lastFix)
     }
 
     override fun startLocationUpdates(onFix: (VehicleLocationReading) -> Unit) {
@@ -249,6 +252,11 @@ class SimRuntimeBridgeImpl(context: Context) : MajungRuntimeBridge {
     }
 
     override val supportsSimulatedScenario: Boolean = true
+
+    override fun resetSimulatedScenario() {
+        scenario.resetToStart()
+        simHardware.emit { onSpeedChanged(0f); onTurnSignalChanged(PleosTurnSignalState.OFF) }
+    }
 
     override fun playSimulatedApproachAndStop(onLog: (String) -> Unit) {
         scenarioLog = onLog
