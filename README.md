@@ -34,12 +34,33 @@
 
 ## 0. 심사위원 3분 체험
 
-1. **영상으로 먼저**: [`docs/demo/majung_demo.mp4`](docs/demo/majung_demo.mp4) — Pleos Connect v2.1.0 에뮬레이터 실녹화와 동승자 웹을 나란히, 단계별 SDK 호출 자막.
-2. **가장 빠른 실행 — APK 하나, 서버 불필요 (일반 Android Automotive 에뮬레이터, 2분)**: `apk/majung-v2-sim-release.apk` 설치 → [픽업 시작, 링크 보내기] → 화면 아래 **[시뮬레이션]** → "동승자 제안: 여기서 탈게요 (서버 없이)" → 카드에서 [수락] → [주변 확인 끝, 문 열기] → [시뮬레이션] → "동승자 탑승". 승차 지점 이동, 잠금 해제·창문, 환대, 탑승 완료와 공유 종료까지 기기 안에서 끝납니다. 화면: [`docs/screenshots/sim_apk_only_suggestion.png`](docs/screenshots/sim_apk_only_suggestion.png)
-   - **동승자 폰 화면까지 보려면** 따로 켤 것이 없습니다. APK의 기본 중계 서버가 공개 HTTPS 주소(`https://majung-relay-6d6d41.azurewebsites.net`)라서, 픽업을 시작하고 오른쪽 위 연결 칩을 누르면 나오는 QR을 휴대폰으로 찍으면 동승자 화면이 열립니다. 휴대폰 브라우저의 위치 공유와 "여기서 탈게요"도 이 주소에서 동작합니다.
-   - **로컬 서버로 시험하려면** `PORT=8080 node relay-server/server.mjs` 를 켜고 앱의 [설정]에서 주소를 `http://10.0.2.2:8080` 으로 바꿉니다. 이때 동승자 웹은 `curl http://127.0.0.1:8080/api/v1/sessions/_latest` 가 주는 값으로 엽니다(이 보조 주소는 같은 PC에서만 응답하고 공개 서버에서는 꺼져 있습니다).
+1. **영상으로 먼저**: [`docs/demo/majung_demo.mp4`](docs/demo/majung_demo.mp4) (약 2분) — Pleos Connect v2.1.0 에뮬레이터 실녹화와 동승자 웹을 나란히 보여 주고, 내레이션으로 단계를 설명합니다.
+2. **가장 빠른 실행 — APK 하나, 서버 불필요 (일반 Android Automotive 에뮬레이터, 3분)**
+
+   설치와 실행:
+   ```bash
+   adb install -r apk/majung-v2-sim-release.apk
+   adb shell am start --user current -n io.majung.pleos.sim/io.majung.pleos.ui.MainActivity
+   ```
+   명령 대신 에뮬레이터 화면 아래의 앱 목록(격자 아이콘)에서 **마중 (MAJUNG)** 을 눌러도 됩니다. 처음 실행할 때 권한(차량 속도, 알림)을 물으면 허용합니다.
+
+   | 순서 | 누르는 것 | 보이는 것 |
+   | --- | --- | --- |
+   | 1 | **[픽업 시작, 링크 보내기]** | "지수님에게 가는 중 300 m". 차는 300 m 떨어진 곳에서 출발 대기 |
+   | 2 | 오른쪽 위 **연결 칩**("동승자 위치 기다리는 중") | **진단** 창에 공유 링크와 **QR**. 휴대폰 카메라로 찍으면 동승자 화면이 열림 |
+   | 3 | (휴대폰) 위치 허용, **"여기서 탈게요"** 로 자리를 골라 보내기 | 차량 화면에 "지수님의 제안" 카드. 진단 창은 [닫기]로 닫아야 보임 |
+   | 4 | 카드의 **[수락]** | 승차 지점이 고른 자리로 이동, 휴대폰에 "운전자가 수락했어요" |
+   | 5 | 화면 아래 **[시뮬레이션]** → **"주행 후 간판 앞 P단 정차"** | 차가 다가와 멈춤. 휴대폰이 "차가 멈췄어요"로 바뀜 |
+   | 6 | **[주변 확인 끝, 문 열기]** | 잠금 해제·창문 25%. 휴대폰이 "지금 타도 돼요" |
+   | 7 | **[시뮬레이션]** → **"동승자 탑승 (문, 착좌, 벨트)"** | 환대 인사 뒤 "탑승 완료. 공유를 끝냈습니다". 휴대폰 링크는 사라짐 |
+
+   - **휴대폰 없이 보려면** 3번 대신 [시뮬레이션] → "동승자 제안: 여기서 탈게요 (서버 없이)"를 누릅니다.
+   - **QR과 링크는 20분 동안만** 쓸 수 있습니다. 만료되면 [마중 종료] 후 다시 시작하면 새 QR이 나옵니다.
+   - **서버를 켤 필요가 없습니다.** APK의 기본 중계 서버가 공개 HTTPS 주소(`https://majung-relay-6d6d41.azurewebsites.net`)입니다. 휴대폰이 어느 통신망에 있든 열리고, 휴대폰 브라우저의 위치 공유도 동작합니다.
+   - **휴대폰이 승차 지점(대치동)에서 2 km 넘게 떨어져 있으면** 지도는 차와 승차 지점 중심으로 보이고 내 위치는 화면 밖에 있습니다. 자리는 지도를 움직여 고를 수 있습니다.
+   - **로컬 서버로 시험하려면** `PORT=8080 node relay-server/server.mjs` 를 켜고 앱의 [설정](대기 화면 왼쪽 아래)에서 주소를 `http://10.0.2.2:8080` 으로 바꿉니다.
    - **공모전 제출 APK**: `apk/커브사이드_마중_release.apk` (팀명 커브사이드, 앱 이름 마중. 아래 pleos 릴리스 APK와 같은 파일입니다.)
-3. **Pleos Connect 에뮬레이터 (실 SDK)**: `apk/커브사이드_마중_release.apk` 설치(서버 준비 불필요) → Virtual Console(127.0.0.1:8088)로 기어 P·차속 0·문·착좌·하향등을 주입하면 차량 화면과 동승자 웹이 즉시 반응합니다. 세부는 4-2절.
+3. **Pleos Connect 에뮬레이터 (실 SDK)**: `adb install -r apk/커브사이드_마중_release.apk` (서버 준비 불필요) → 화면 아래 줄의 앱 목록(격자 아이콘)에서 **마중 (MAJUNG)** 실행 → [픽업 시작] → 연결 칩의 QR을 휴대폰으로 찍음 → Virtual Console(127.0.0.1:8088)로 기어 P·차속 0·문·착좌·하향등을 주입하면 차량 화면과 동승자 웹이 즉시 반응합니다. 세부는 4-2절.
 4. **코드에서 확인**: 2절의 표(README 주장 ↔ 소스), `node relay-server/verify_e2e_sse.mjs`, `./gradlew :app:testSimDebugUnitTest`(58건), `docs/verification/pleos_emulator_evidence.md`(실제 SDK 로그).
 
 ### 주장과 그것을 증명하는 테스트
@@ -141,11 +162,11 @@ MAJUNG_RELAY_BASE=https://majung-relay-6d6d41.azurewebsites.net node relay-serve
 ### 4-2. Pleos Connect Emulator — pleos 플레이버 (검증 완료)
 - 검증 환경: **Pleos Connect Emulator v2.1.0** (`system-images;android-34;pleos_car_emulator;arm64-v8a`, Android API 34, Cold boot, RAM 4GB, 화면 2560×1440 @160dpi, `-gpu host`, macOS Apple Silicon)
 - 이미지 설치: `./scripts/install_pleos_emulator_image.sh` (공식 SDK Update Site 등록 + 42dot SDK 라이선스 동의 + 4.67GB 다운로드) → `avdmanager create avd -n pleos_connect -k "system-images;android-34;pleos_car_emulator;arm64-v8a" -d Pleos_Connect_v2_0`
-- `apk/majung-v2-pleos-release.apk` 설치 → 첫 실행 시 `android.car.permission.CAR_SPEED`(위치 그룹) 권한 허용
+- `adb install -r apk/커브사이드_마중_release.apk` → 화면 아래 줄의 앱 목록(격자 아이콘)을 눌러 **마중 (MAJUNG)** 아이콘으로 실행합니다(이 에뮬레이터에서는 `adb shell am start` 로 띄우면 화면에 나타나지 않는 경우가 있습니다). 첫 실행 시 `android.car.permission.CAR_SPEED`(위치 그룹)와 알림 권한을 허용합니다.
 - Virtual Console(`adb forward tcp:8088 tcp:8088` → 127.0.0.1:8088)로 기어·차속·도어·착좌·하향등·와이퍼·방향지시등을 주입하면 화면과 동승자 웹이 즉시 반응(하향등 ON → 밤 화면). 차량 신호·SDK 로그는 오른쪽 위 연결 칩을 눌러 여는 **진단** 창에서 봅니다. 화면이 꺼지면 Virtual Console에서 Power System 상태를 `On`으로 두세요.
 - 앱은 Pleos 런처의 오른쪽 앱 영역(1707×1210)에 임베드되어 실행됩니다. 화면은 2560dp 폭 기준으로 그리고 영역 폭에 비례해 축소합니다(`MainActivity.kt`).
 - **차량 위치 주입(디버그 빌드 전용):** Pleos 에뮬레이터에는 FusedLocation 주입 수단이 없어, `app-pleos-debug.apk`에서만 `adb shell am broadcast --user 10 -a io.majung.pleos.DEBUG_LOCATION -p io.majung.pleos --ef lat 37.4988 --ef lng 127.0580 --ef heading 90` 으로 좌표를 넣을 수 있습니다(release APK에는 없음). 실차·실 에뮬레이터 위치가 들어오면 같은 허브로 합쳐져 그대로 우선합니다. 시연 영상의 차량 이동은 이 방식입니다. 전체 시연 절차: `tools/demo-video/pleos_flow.sh`
-- 동승자 위치·간편 제안은 동승자 웹(브라우저)에서 보내거나, 시연에서는 `curl -X POST "http://127.0.0.1:8080/api/v1/sessions/<id>/passenger-location?t=<토큰>" -d '{"lat":…,"lng":…,"accuracyM":12}'` 와 `/suggest?t=<토큰>` 로 넣습니다. 세션 id와 동승자 토큰은 같은 PC에서만 응답하는 `GET http://127.0.0.1:8080/api/v1/sessions/_latest` 로 얻습니다(공유 링크 `/m/<id>?t=<토큰>`과 같은 값).
+- 동승자 위치·간편 제안은 QR로 연 동승자 웹에서 보냅니다. 폰 없이 넣으려면 진단 창의 공유 링크(`…/m/<id>?t=<토큰>`)에 있는 값으로 `curl -X POST "<서버 주소>/api/v1/sessions/<id>/passenger-location?t=<토큰>" -H 'Content-Type: application/json' -d '{"lat":…,"lng":…,"accuracyM":12}'` 와 `/suggest?t=<토큰>` 를 호출합니다.
 - 확인된 것: SDK `register*` 16건 등록, 콜백 수신(기어·차속·브레이크·조향·방향지시등·하향등·와이퍼·도어·착좌), 제어 `onComplete`(도어 잠금 해제·창문·독서등), NaviHelper 경로 요청·재경로·TBT 수신, 능력 조회, OSM 지도 타일 로드, 동승자 위치/제안 SSE 수신, '여기 못 서요' 3안, 낮/밤 전환. 제약(벨트 신호·위치 주입 불가, TTS 엔진 미탑재, 착좌 값 반전, 경로 요청 시 내비 앱 전면 전환)은 `docs/verification/pleos_emulator_evidence.md`.
 - SDK: Vehicle 2.3.2 · NaviHelper 3.0.5 · FusedLocation 1.1.3 · TextToSpeech 3.3.1 (`nexus-playground.pleos.ai` 실제 배포 버전)
 
@@ -159,7 +180,7 @@ MAJUNG_RELAY_BASE=https://majung-relay-6d6d41.azurewebsites.net node relay-serve
 
 ### 4-3. Android Automotive OS 에뮬레이터 / 일반 AVD — sim 플레이버
 - 검증 환경: **Android Automotive OS API 33 (arm64), AVD 2560×1440 @160dpi, RAM 4GB** — 위치 기반 자동 접근·정차 판정까지 포함한 6단계 전체를 실행·녹화했습니다(Pleos 에뮬레이터는 위치 주입이 안 되어 이 부분은 sim으로 시연).
-- `apk/majung-v2-sim-release.apk` 설치 후 [픽업 시작] → 화면 아래 **[시뮬레이션]** 버튼으로 여는 창에서 "주행 후 간판 앞 P단 정차" → [주변 확인 끝, 문 열기] → "차도 쪽 문 잘못 열림"(선택) → "동승자 탑승(문, 착좌, 벨트)". 모두 리스너 주입이라 pleos와 같은 코드가 돕니다.
+- 설치·실행과 누르는 순서는 0절의 표와 같습니다. [시뮬레이션] 창의 "차도 쪽 문 잘못 열림"을 누르면 즉시 음성 경고가 나옵니다. 모두 리스너 주입이라 pleos와 같은 코드가 돕니다.
 - 버튼은 화면 아래 한 줄에 고정되어 **주행 중 위치가 움직이지 않습니다**. 주행 제한(UX restriction) 중에는 입력란이 숨고 저장된 값으로 시작합니다.
 
 ### 4-4. 빌드 환경
