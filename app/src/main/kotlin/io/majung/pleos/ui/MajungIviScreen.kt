@@ -199,8 +199,8 @@ fun MajungIviScreen(
     if (settingsOpen) {
         PlateDialog(t, "설정", onDismiss = { settingsOpen = false }) {
             Text("동승자 웹 중계 서버", color = t.muted, fontSize = 28.sp)
-            PlateField(t, inputs.relayUrl, { onInputsChange(inputs.copy(relayUrl = it)) }, "http://10.0.2.2:8080", Modifier.fillMaxWidth())
-            Text("에뮬레이터에서 호스트 PC의 relay-server(8080)로 바로 연결되는 기본값입니다.", color = t.muted, fontSize = 24.sp)
+            PlateField(t, inputs.relayUrl, { onInputsChange(inputs.copy(relayUrl = it)) }, "https://…", Modifier.fillMaxWidth())
+            Text("기본값은 공개 중계 서버입니다. 로컬 서버로 시험하려면 http://10.0.2.2:8080 으로 바꾸세요.", color = t.muted, fontSize = 24.sp)
         }
     }
     if (diagOpen) {

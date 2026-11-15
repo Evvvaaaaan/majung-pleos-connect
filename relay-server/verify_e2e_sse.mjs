@@ -9,15 +9,18 @@
  */
 import assert from "node:assert/strict";
 import http from "node:http";
+import https from "node:https";
 import { createMajungRelayServer } from "./server.mjs";
 
+// MAJUNG_RELAY_BASE=https://... 를 주면 로컬 서버를 띄우지 않고 배포된 중계 서버를 상대로 같은 검증을 한다.
+const REMOTE = process.env.MAJUNG_RELAY_BASE ? process.env.MAJUNG_RELAY_BASE.replace(/\/$/, "") : null;
 const server = createMajungRelayServer();
 
 /** SSE 구독 헬퍼: 수신한 이벤트를 모으고 조건을 만족하는 이벤트를 기다린다. */
 function subscribe(url, headers = {}) {
   const events = [];
   const waiters = [];
-  const req = http.get(url, { headers }, (res) => {
+  const req = (url.startsWith("https:") ? https : http).get(url, { headers }, (res) => {
     res.setEncoding("utf8");
     let buf = "";
     res.on("data", (chunk) => {
@@ -34,7 +37,7 @@ function subscribe(url, headers = {}) {
   });
   req.on("error", () => {});
   return {
-    waitFor: (pred, timeoutMs = 3000) => new Promise((resolve, reject) => {
+    waitFor: (pred, timeoutMs = REMOTE ? 10000 : 3000) => new Promise((resolve, reject) => {
       const t = setTimeout(() => reject(new Error("SSE wait timeout")), timeoutMs);
       const check = () => {
         const hit = events.find(pred);
@@ -50,10 +53,9 @@ function subscribe(url, headers = {}) {
   };
 }
 
-await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const { port } = server.address();
-const base = `http://127.0.0.1:${port}`;
-const sessionId = "mj-e2e-test01";
+if (!REMOTE) await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+const base = REMOTE || `http://127.0.0.1:${server.address().port}`;
+const sessionId = REMOTE ? `mj-e2e-${Date.now().toString(36)}` : "mj-e2e-test01";
 const CAR_KEY = "car-key-e2e-0123456789abcdef";   // 차량이 세션마다 만드는 비밀 (헤더)
 const TOKEN = "tok-e2e-0123456789abcdef";         // 동승자 일회성 토큰 (공유 링크의 ?t=)
 const carHeaders = { "Content-Type": "application/json", "X-Majung-Car-Key": CAR_KEY };
@@ -149,7 +151,7 @@ try {
   // 2) SSE 클라이언트 연결 및 실시간 이벤트 수집
   const receivedEvents = [];
   await new Promise((resolve, reject) => {
-    const req = http.get(withToken("/events"), (res) => {
+    const req = (base.startsWith("https:") ? https : http).get(withToken("/events"), (res) => {
       assert.equal(res.statusCode, 200);
       res.setEncoding("utf8");
       let buf = "";

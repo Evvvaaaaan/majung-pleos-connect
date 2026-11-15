@@ -36,9 +36,10 @@
 
 1. **영상으로 먼저**: [`docs/demo/majung_demo.mp4`](docs/demo/majung_demo.mp4) — Pleos Connect v2.1.0 에뮬레이터 실녹화와 동승자 웹을 나란히, 단계별 SDK 호출 자막.
 2. **가장 빠른 실행 — APK 하나, 서버 불필요 (일반 Android Automotive 에뮬레이터, 2분)**: `apk/majung-v2-sim-release.apk` 설치 → [픽업 시작, 링크 보내기] → 화면 아래 **[시뮬레이션]** → "동승자 제안: 여기서 탈게요 (서버 없이)" → 카드에서 [수락] → [주변 확인 끝, 문 열기] → [시뮬레이션] → "동승자 탑승". 승차 지점 이동, 잠금 해제·창문, 환대, 탑승 완료와 공유 종료까지 기기 안에서 끝납니다. 화면: [`docs/screenshots/sim_apk_only_suggestion.png`](docs/screenshots/sim_apk_only_suggestion.png)
-   - **동승자 폰 화면까지 보려면** 중계 서버를 켭니다: `PORT=8080 node relay-server/server.mjs` 후 같은 순서. 동승자 웹은 `curl http://127.0.0.1:8080/api/v1/sessions/_latest` 가 주는 `sessionId`·`passengerToken`으로 `http://localhost:8080/m/<sessionId>?t=<passengerToken>&demoLat=37.49893&demoLng=127.06164` 를 브라우저에서 엽니다.
+   - **동승자 폰 화면까지 보려면** 따로 켤 것이 없습니다. APK의 기본 중계 서버가 공개 HTTPS 주소(`https://majung-relay-6d6d41.azurewebsites.net`)라서, 픽업을 시작하고 오른쪽 위 연결 칩을 누르면 나오는 QR을 휴대폰으로 찍으면 동승자 화면이 열립니다. 휴대폰 브라우저의 위치 공유와 "여기서 탈게요"도 이 주소에서 동작합니다.
+   - **로컬 서버로 시험하려면** `PORT=8080 node relay-server/server.mjs` 를 켜고 앱의 [설정]에서 주소를 `http://10.0.2.2:8080` 으로 바꿉니다. 이때 동승자 웹은 `curl http://127.0.0.1:8080/api/v1/sessions/_latest` 가 주는 값으로 엽니다(이 보조 주소는 같은 PC에서만 응답하고 공개 서버에서는 꺼져 있습니다).
    - **공모전 제출 APK**: `apk/커브사이드_마중_release.apk` (팀명 커브사이드, 앱 이름 마중. 아래 pleos 릴리스 APK와 같은 파일입니다.)
-3. **Pleos Connect 에뮬레이터 (실 SDK)**: 위 중계 서버 + `apk/majung-v2-pleos-release.apk` → Virtual Console(127.0.0.1:8088)로 기어 P·차속 0·문·착좌·하향등을 주입하면 차량 화면과 동승자 웹이 즉시 반응합니다. 세부는 4-2절.
+3. **Pleos Connect 에뮬레이터 (실 SDK)**: `apk/커브사이드_마중_release.apk` 설치(서버 준비 불필요) → Virtual Console(127.0.0.1:8088)로 기어 P·차속 0·문·착좌·하향등을 주입하면 차량 화면과 동승자 웹이 즉시 반응합니다. 세부는 4-2절.
 4. **코드에서 확인**: 2절의 표(README 주장 ↔ 소스), `node relay-server/verify_e2e_sse.mjs`, `./gradlew :app:testSimDebugUnitTest`(58건), `docs/verification/pleos_emulator_evidence.md`(실제 SDK 로그).
 
 ### 주장과 그것을 증명하는 테스트
@@ -126,9 +127,14 @@ node relay-server/verify_e2e_sse.mjs          # 중계 서버 E2E: 좌표 필드
 ## 4. 실행 방법 · 테스트 환경
 
 ### 4-1. 중계 서버 + 동승자 웹 (Node 18+, 외부 의존성 없음)
+공개 중계 서버가 `https://majung-relay-6d6d41.azurewebsites.net` 에서 돌고 있고, 릴리스 APK의 기본 주소가 이 서버입니다. 따로 실행할 것은 없습니다.
+세션은 서버 메모리에만 있고 탑승 확인 즉시 지워지며, 연결이 끊기면 차량이 2초 뒤 다시 붙습니다.
+
+직접 띄워 시험할 때:
 ```bash
 PORT=8080 node relay-server/server.mjs
-# 에뮬레이터는 http://10.0.2.2:8080 으로 자동 연결, 브라우저는 http://localhost:8080/m/<sessionId>
+# 앱의 [설정]에서 중계 서버 주소를 http://10.0.2.2:8080 으로 바꾼다. 브라우저는 http://localhost:8080/m/<sessionId>?t=<token>
+MAJUNG_RELAY_BASE=https://majung-relay-6d6d41.azurewebsites.net node relay-server/verify_e2e_sse.mjs   # 배포된 서버를 상대로 같은 종단 검증
 ```
 - 공개 서버로 올릴 때: `docker build -f relay-server/Dockerfile -t majung-relay . && docker run -p 8080:8080 majung-relay` (Fly.io·Render 같은 컨테이너 호스팅에 그대로 올라감, 인스턴스 1개). 올린 HTTPS 주소를 차량 앱 **설정**의 중계 서버 주소에 넣으면 폰에서 QR로 열고 위치 공유까지 됩니다.
 
@@ -145,7 +151,7 @@ PORT=8080 node relay-server/server.mjs
 
 #### 심사위원·동승자 폰으로 직접 열기 (2차 PT 시연)
 - 차량 화면의 연결 칩(오른쪽 위)을 누르면 **진단** 창에 공유 링크와 **QR**이 뜹니다. 폰으로 찍으면 같은 동승자 웹이 열립니다.
-- 폰이 중계 서버에 닿아야 하므로 **설정**(대기 화면 왼쪽 아래)의 중계 서버 주소를 폰에서 열리는 주소로 바꾼 뒤 세션을 시작합니다.
+- 기본 주소가 공개 HTTPS 서버라서 설정을 바꾸지 않아도 폰에서 열리고, 폰 브라우저의 위치 공유도 동작합니다. 다른 서버를 쓰려면 **설정**(대기 화면 왼쪽 아래)에서 주소를 바꾼 뒤 세션을 시작합니다.
   - 같은 Wi‑Fi: `http://<PC의 LAN IP>:8080` — 지도·번호판·제안은 되지만, 폰 브라우저의 위치 공유는 HTTPS가 아니라서 꺼집니다(자리는 지도에서 고를 수 있음).
   - 위치 공유까지: HTTPS 주소가 필요합니다. 공개 서버에 `node relay-server/server.mjs`를 올리거나, 시연 PC에서 `cloudflared tunnel --url http://localhost:8080`(brew install cloudflared, 계정 불필요)로 받은 `https://….trycloudflare.com` 주소를 설정에 넣습니다. 에뮬레이터도 그 주소로 연결됩니다.
 - 동승자가 폰에서 지도를 움직여 "여기서 탈게요"를 보내면 차량 지도에 그 자리가 마중 심볼로 뜨고, 카드에서 [수락]하면 승차 지점이 옮겨집니다.

@@ -39,6 +39,10 @@ class EphemeralRelayClient(
 
     private var activeEventSource: EventSource? = null
 
+    // 스트림이 끊기면(서버 재시작, 프록시 유휴 종료, 통신 음영) 같은 세션으로 다시 붙는다. close() 또는 새 구독이 오면 멈춘다.
+    private val reconnectTimer = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "majung-relay-reconnect").apply { isDaemon = true } }
+    @Volatile private var subscriptionGeneration = 0
+
     /**
      * 차량 키: 이 앱 프로세스가 만든 세션을 이 프로세스만 고칠 수 있게 하는 비밀. 세션을 만드는 첫 PUT 에 실리고,
      * 이후 모든 차량 쪽 호출(PUT·DELETE·suggestion-reply·events)에 헤더로 붙는다. 동승자에게는 전달되지 않는다.
@@ -147,6 +151,10 @@ class EphemeralRelayClient(
         }
 
     override suspend fun shredEphemeralSession(sessionId: String): Boolean {
+        // 세션을 끝냈으면 이벤트 스트림도 닫고 재연결을 멈춘다
+        subscriptionGeneration++
+        activeEventSource?.cancel()
+        activeEventSource = null
         activeEventSource?.cancel()
         activeEventSource = null
         return withContext(Dispatchers.IO) {
@@ -168,7 +176,15 @@ class EphemeralRelayClient(
         onPassengerLocation: (GeoPoint, accuracyM: Double?) -> Unit = { _, _ -> },
         onPassengerSuggestion: (PassengerSuggestion) -> Unit = {}
     ) {
+        val generation = ++subscriptionGeneration
         activeEventSource?.cancel()
+        val resubscribe = {
+            reconnectTimer.schedule({
+                if (generation == subscriptionGeneration) {
+                    subscribePassengerEvents(sessionId, onPassengerReady, onLandmarkSwapRequested, onPassengerLocation, onPassengerSuggestion)
+                }
+            }, RECONNECT_DELAY_MS, TimeUnit.MILLISECONDS)
+        }
         val request = Request.Builder()
             .url("${baseUrl.trimEnd('/')}/api/v1/sessions/$sessionId/events")
             .asCar()
@@ -221,18 +237,31 @@ class EphemeralRelayClient(
                     }
                 }
 
+                override fun onOpen(eventSource: EventSource, response: Response) {
+                    android.util.Log.i("MajungRelay", "events stream open: HTTP ${response.code} ${response.protocol}")
+                }
+
                 override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
-                    // 로컬 중계 서버 미실행 시에도 앱 UI가 중단되지 않도록 조용히 폴백 처리
+                    // 중계 서버가 없어도 앱 UI는 멈추지 않는다. 원인은 로그에 남긴다.
+                    android.util.Log.w("MajungRelay", "events stream failed: HTTP ${response?.code} ${t?.javaClass?.simpleName}: ${t?.message}")
+                    // 세션이 서버에서 지워졌거나(404) 권한이 없으면(403) 다시 붙지 않는다
+                    if (generation == subscriptionGeneration && response?.code != 404 && response?.code != 403) resubscribe()
+                }
+
+                override fun onClosed(eventSource: EventSource) {
+                    if (generation == subscriptionGeneration) resubscribe()
                 }
             })
     }
 
     fun close() {
+        subscriptionGeneration++
         activeEventSource?.cancel()
         activeEventSource = null
     }
 
     companion object {
         const val CAR_KEY_HEADER = "X-Majung-Car-Key"
+        const val RECONNECT_DELAY_MS = 2_000L
     }
 }

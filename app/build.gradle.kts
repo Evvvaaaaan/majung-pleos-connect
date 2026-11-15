@@ -19,8 +19,9 @@ android {
         versionCode = 300
         versionName = "3.0.0"
 
-        // 에뮬레이터(Pleos Connect AVD / 표준 AVD)에서 호스트 PC의 relay-server(8080 포트)로 즉시 연결되는 기본 주소
-        buildConfigField("String", "DEFAULT_RELAY_URL", "\"http://10.0.2.2:8080\"")
+        // 공개 중계 서버(HTTPS). 서버를 직접 띄우지 않아도 동승자 폰까지 연결된다.
+        // 로컬 서버로 시험하려면 앱의 [설정]에서 http://10.0.2.2:8080 (에뮬레이터에서 본 호스트 PC)으로 바꾼다.
+        buildConfigField("String", "DEFAULT_RELAY_URL", "\"https://majung-relay-6d6d41.azurewebsites.net\"")
         // 일회성 공유 토큰 최대 만료 시간: 20분(1,200,000ms), 탑승 완료 또는 수동 종료 시 즉시 파기
         buildConfigField("long", "SESSION_MAX_TTL_MS", "1200000L")
     }

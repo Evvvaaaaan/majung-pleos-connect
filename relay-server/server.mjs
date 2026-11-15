@@ -186,7 +186,9 @@ export function createMajungRelayServer() {
     // 0) 로컬 시연·테스트 보조: 가장 최근 세션 id와 동승자 토큰 (같은 PC의 루프백 요청에서만 응답한다 — 시연·검증 도구용)
     if (req.method === "GET" && url.pathname === "/api/v1/sessions/_latest") {
       const remote = req.socket.remoteAddress || "";
-      const isLoopback = remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1";
+      // 공개 배포에서는 항상 꺼 둔다: 프록시 뒤에서는 원격 주소가 루프백으로 보일 수 있어, 전달 헤더가 있거나 호스팅 환경이면 응답하지 않는다.
+      const behindProxy = !!req.headers["x-forwarded-for"] || !!process.env.WEBSITE_HOSTNAME || process.env.MAJUNG_PUBLIC === "1";
+      const isLoopback = !behindProxy && (remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1");
       const latest = [...ephemeralSessions.keys()].pop();
       if (!isLoopback || !latest) {
         res.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });

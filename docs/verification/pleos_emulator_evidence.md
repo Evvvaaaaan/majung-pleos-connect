@@ -144,3 +144,16 @@ tools/demo-video/pleos_flow.sh <work-dir>
 
 확인하지 못한 것: 이 에뮬레이터에서는 화면 위 팝업(헤드업)이 뜨지 않고 알림 센터에만 표시됐다. Pleos Connect 에뮬레이터의 내비 화면 위 표시는 아직 확인하지 않았다.
 동승자 웹의 "지금 나가요"는 기존 READY 종류로 전송되며, 차량은 음성 안내와 "준비 완료를 알렸어요" 문구로 받는다(유닛 테스트 `readyMessageShowsABannerAndNeedsNoAnswer`).
+
+## 공개 중계 서버 (2026-11-15, Azure App Service · https://majung-relay-6d6d41.azurewebsites.net)
+
+| 확인 | 결과 |
+| --- | --- |
+| `MAJUNG_RELAY_BASE=https://majung-relay-6d6d41.azurewebsites.net node relay-server/verify_e2e_sse.mjs` | PASS (접근 제어, SSE, 위치·제안, 수락 응답, 즉시 삭제) |
+| 로컬 서버 없이 sim 릴리스 APK로 픽업 시작 | 공유 링크가 공개 주소로 생성, 토큰으로 조회 200, 토큰 없이 403 |
+| 공개 서버로 동승자 제안 전송 | 차량 화면에 "지수님의 제안 · 여기서 탈게요 · 승차 지점에서 43 m" 카드 |
+| [마중 종료] | 서버에서 세션 조회 404 |
+| 세션 중 서버 재시작 | 차량 로그 `events stream failed … Connection reset` 뒤 `events stream open`, 세션 재등록(조회 200), 이후 제안이 다시 도착 |
+| 개발 보조 주소 `/sessions/_latest` | 세션이 있어도 공개 서버에서는 404 |
+
+세션은 서버 메모리에만 있으므로 서버가 재시작되면 차량이 다음 상태 전송에서 같은 세션을 다시 등록한다. 실제 휴대폰으로 QR을 찍는 확인은 아직 하지 않았다.
